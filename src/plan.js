@@ -8,7 +8,7 @@ const MAX_ROOMS = 40;
 function num(value, lo, hi, fallback) {
   const n = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '') ? Number(value) : NaN;
   if (!Number.isFinite(n)) return fallback;
-  return Math.min(hi, Math.max(lo, Math.round(n * 2) / 2)); // snap to half units
+  return Math.min(hi, Math.max(lo, Math.round(n * 4) / 4)); // snap to quarter squares
 }
 
 function text(value, max, fallback = '') {
@@ -36,8 +36,8 @@ function defaultPlan() {
 
 function sanitizePlan(input) {
   const src = input && typeof input === 'object' ? input : {};
-  const width = num(src.width, 6, 60, 20);
-  const height = num(src.height, 6, 60, 14);
+  const width = Math.round(num(src.width, 6, 80, 20));
+  const height = Math.round(num(src.height, 6, 80, 14));
   const rooms = [];
   const seen = new Set();
   for (const r of Array.isArray(src.rooms) ? src.rooms.slice(0, MAX_ROOMS) : []) {
@@ -45,8 +45,8 @@ function sanitizePlan(input) {
     let id = text(r.id, 24, '').replace(/[^A-Za-z0-9_-]/g, '');
     if (!id || seen.has(id)) id = `r${rooms.length + 1}_${Math.random().toString(36).slice(2, 7)}`;
     seen.add(id);
-    const w = num(r.w, 1, width, 4);
-    const h = num(r.h, 1, height, 3);
+    const w = num(r.w, 0.5, width, 4);
+    const h = num(r.h, 0.5, height, 3);
     rooms.push({
       id,
       name: text(r.name, 40, 'Room'),

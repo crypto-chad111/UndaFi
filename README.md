@@ -27,8 +27,11 @@ strength, read a few times a second.
 - see movement outside that band. Rooms the band does not cross are **not
   covered**;
 - find walls. You draw your floor plan once, by hand, in the app;
-- tell where exactly in the band the movement was. The figure marks the zone,
-  not a spot;
+- tell which room in the band the movement was in. The figure walks up and
+  down the whole band to show "somewhere in here". It does not mark a spot;
+- be widened by a setting. The band is the path the signal really travels
+  between the PC and the router. Higher sensitivity catches weaker movement
+  inside the band; it does not reach other rooms;
 - tell a person from a pet. "Small" only means a weaker disturbance. A cat
   near the PC can look bigger than a person far from it;
 - promise anything. Signal strength is a rough measure. Expect some false
@@ -56,18 +59,28 @@ Three things it needs:
 
 Another port: `node server.js --port 4790`. Port 3001 is refused on purpose.
 
-`start-demo.bat` opens a second copy on port 4781 with a **made-up** signal,
-only for looking at the dashboard. It is marked DEMO everywhere and keeps its
-own separate log.
+`try-demo-fake-signal.bat` opens a second copy on port 4781 with a
+**made-up** signal and made-up movement, only for looking at the dashboard.
+It does not watch your home. It is marked DEMO everywhere and keeps its own
+separate log. A layout you draw in the demo is carried over to the real app
+the first time you start it.
 
 ## First-time setup (about 10 minutes)
 
 1. **Draw your home.** Press "Edit layout". Drag the rooms, rename them, and
    drag ROUTER and PC to where they really are. Save.
+   - Out of space? Raise the two "Grid" numbers (up to 80 x 80). You get
+     more squares and everything is drawn smaller.
+   - Rooms snap to quarter squares and can be as small as half a square.
+   - A rough sketch is enough. What matters is that PC and ROUTER sit in the
+     right rooms.
 2. **Walk test.** Press "Test at home (no alerts)". Wait for the learning to
    finish, sit still for a minute, then walk between the PC and the router.
    Watch the signal chart. If nothing shows, raise the sensitivity in
-   "Alerts and settings". If it triggers while nobody moves, lower it.
+   "Alerts and settings". If it triggers while nobody moves, lower it, or
+   raise "Movement must last at least".
+   - The figure stays a few seconds after the movement stops. That is
+     normal: the app judges the last 8 seconds of signal.
    - The further apart the PC and router are (a room or two), the more of
      the home the band covers.
 3. **Set up alerts** in "Alerts and settings":
@@ -114,7 +127,7 @@ ON, and carries on after a restart (with the countdown again).
 
 ## What has and has not been tested
 
-Tested (automated, `npm test`, 34 checks):
+Tested (automated, `npm test`, 39 checks):
 
 - the movement detector, on simulated signals;
 - reading Windows' WiFi report, from sample text (English and German);

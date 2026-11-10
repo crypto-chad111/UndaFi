@@ -48,7 +48,7 @@ test('a person walking through the signal is detected, then it ends', () => {
 
 test('a weaker disturbance is reported as small', () => {
   const rand = rng(3);
-  const d = new Detector({ sensitivity: 6 });
+  const d = new Detector({ sensitivity: 8 });
   const quiet = () => -52 + (rand() - 0.5) * 2;
   feed(d, 0, 60, quiet);
   const seen = feed(d, 60000, 10, (t) => -52 + Math.sin(t / 420) * 3);
@@ -91,4 +91,49 @@ test('a sensor drop-out starts learning again instead of alarming', () => {
   const r = d.push(200000, -70);
   assert.strictEqual(r.ready, false);
   assert.strictEqual(r.started, null);
+});
+
+test('at maximum sensitivity a still house stays quiet and movement still ends', () => {
+  const rand = rng(8);
+  const gauss = () => {
+    let u = 0;
+    let v = 0;
+    while (!u) u = rand();
+    while (!v) v = rand();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  };
+  const quiet = () => -52 + gauss() * 0.45;
+  const d = new Detector({ sensitivity: 10 });
+  const still = feed(d, 0, 3600, quiet);
+  assert.strictEqual(still.started.length, 0, 'no false alarm in an hour of stillness');
+  const walk = feed(d, 3600000, 10, (t) => -52 + Math.sin(t / 420) * 6);
+  assert.strictEqual(walk.started.length, 1);
+  const after = feed(d, 3610000, 30, quiet);
+  assert.strictEqual(after.ended.length, 1, 'the movement is over within 30 seconds, not stuck on');
+  assert.strictEqual(after.last.motion, null);
+});
+
+test('one glitchy reading is not movement', () => {
+  const rand = rng(9);
+  const d = new Detector({ sensitivity: 10 });
+  const quiet = () => -52 + (rand() - 0.5) * 2;
+  feed(d, 0, 60, quiet);
+  const r = d.push(60000, -75);
+  assert.strictEqual(r.started, null);
+  const after = feed(d, 60400, 30, quiet);
+  assert.strictEqual(after.started.length, 0);
+});
+
+test('"must last" ignores a blip shorter than the setting', () => {
+  const rand = rng(10);
+  const quiet = () => -52 + (rand() - 0.5) * 2;
+  const run = (confirmMs) => {
+    const d = new Detector({ sensitivity: 7, confirmMs });
+    feed(d, 0, 60, quiet);
+    const blip = feed(d, 60000, 4, (t) => -52 + Math.sin(t / 420) * 6);
+    const rest = feed(d, 64000, 30, quiet);
+    return blip.started.length + rest.started.length;
+  };
+  assert.strictEqual(run(0), 1);
+  assert.strictEqual(run(15000), 0);
 });

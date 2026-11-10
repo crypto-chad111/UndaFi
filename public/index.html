@@ -27,10 +27,12 @@
         <button id="addRoomBtn" class="btn">Add room</button>
         <label class="inline">Name <input id="roomName" type="text" maxlength="40" placeholder="Tap a room first" disabled></label>
         <button id="delRoomBtn" class="btn" disabled>Delete room</button>
+        <label class="inline">Grid <input id="gridW" type="number" min="6" max="80" step="1" aria-label="Grid width in squares"> × <input id="gridH" type="number" min="6" max="80" step="1" aria-label="Grid height in squares"></label>
         <span class="spacer"></span>
         <button id="cancelEditBtn" class="btn">Cancel</button>
         <button id="saveEditBtn" class="btn solid">Save layout</button>
       </div>
+      <div id="demoWarn" class="warn" hidden>DEMO: the signal and the movement on this page are made up. This is not watching your home. To watch your home, close this and double-click start.bat (it opens on port 4780).</div>
       <div id="sensorWarn" class="warn" hidden></div>
       <div class="map-wrap"><svg id="map" role="img" aria-label="Floor plan of the home with the sensing zone"></svg></div>
       <p id="caption" class="caption"></p>
@@ -79,6 +81,15 @@
           <input id="sensitivity" type="range" min="1" max="10" step="1">
         </label>
         <p class="hint">Higher catches smaller movement but gives more false alarms.</p>
+        <div class="two">
+          <label>Movement must last at least (seconds)
+            <input id="confirmSec" type="number" min="0" max="15">
+          </label>
+          <label>Movement is over after this much quiet (seconds)
+            <input id="quietSec" type="number" min="2" max="60">
+          </label>
+        </div>
+        <p class="hint">A longer "must last" ignores short blips. The figure also stays a few seconds longer than the movement, because the app looks at the last 8 seconds of signal.</p>
         <div class="two">
           <label>Time to leave after switching on (seconds)
             <input id="armDelaySec" type="number" min="0" max="600">

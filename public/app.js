@@ -89,7 +89,7 @@ function renderStatus() {
       cls = 'status wait';
     }
   }
-  status.textContent = line;
+  status.textContent = state.demo ? `DEMO · ${line}` : line;
   status.className = cls;
 
   btn.className = `power-btn${m === 'armed' ? ' on' : m === 'arming' ? ' arming' : m === 'test' ? ' test' : ''}`;
@@ -107,6 +107,7 @@ function renderStatus() {
   warn.textContent = detail;
 
   $('demoBadge').hidden = !state.demo;
+  $('demoWarn').hidden = !state.demo;
   $('recalBtn').disabled = !monitoring();
 }
 
@@ -133,19 +134,22 @@ function renderMap() {
   const plan = edit ? edit.plan : state.plan;
   const W = plan.width * U;
   const H = plan.height * U;
+  // Icons, labels and the figure keep their size on screen when the grid grows.
+  const k = plan.width / 20;
+  const narrow = window.matchMedia('(max-width: 920px)').matches;
   map.setAttribute('viewBox', `0 0 ${W} ${H}`);
   map.replaceChildren();
 
   const defs = svg('defs');
   const glow = svg('filter', { id: 'glow', x: '-40%', y: '-40%', width: '180%', height: '180%' });
-  glow.append(svg('feGaussianBlur', { stdDeviation: '5', result: 'b' }));
+  glow.append(svg('feGaussianBlur', { stdDeviation: 5 * k, result: 'b' }));
   const merge = svg('feMerge');
   merge.append(svg('feMergeNode', { in: 'b' }), svg('feMergeNode', { in: 'SourceGraphic' }));
   glow.append(merge);
   const grad = svg('radialGradient', { id: 'bandFill' });
   grad.append(svg('stop', { offset: '0', 'stop-color': '#3dff8f', 'stop-opacity': '0.20' }), svg('stop', { offset: '1', 'stop-color': '#3dff8f', 'stop-opacity': '0.02' }));
   const dots = svg('pattern', { id: 'dots', width: U, height: U, patternUnits: 'userSpaceOnUse' });
-  dots.append(svg('circle', { class: 'grid-dot', cx: 0.5, cy: 0.5, r: 1.3 }));
+  dots.append(svg('circle', { class: 'grid-dot', cx: 0.5, cy: 0.5, r: 1.3 * k }));
   defs.append(glow, grad, dots);
   map.append(defs, svg('rect', { x: 0, y: 0, width: W, height: H, fill: 'url(#dots)' }));
 
@@ -166,6 +170,7 @@ function renderMap() {
     }),
   );
 
+  const baseFont = (narrow ? 24 : 15) * k;
   for (const room of plan.rooms) {
     const hot = motion && covered.has(room.id);
     const cls = ['room'];
@@ -174,7 +179,10 @@ function renderMap() {
     if (edit) cls.push('draggable');
     if (edit && edit.selected === room.id) cls.push('selected');
     const rect = svg('rect', { class: cls.join(' '), x: room.x * U, y: room.y * U, width: room.w * U, height: room.h * U, 'data-room': room.id });
-    map.append(rect, svg('text', { class: `room-label${hot ? ' hot' : ''}`, x: room.x * U + 10, y: room.y * U + 22 }, room.name));
+    // Shrink the name so it stays inside a small room.
+    const fit = (room.w * U - 14 * k) / (0.68 * Math.max(1, room.name.length));
+    const font = Math.max(5 * k, Math.min(baseFont, fit, room.h * U * 0.6));
+    map.append(rect, svg('text', { class: `room-label${hot ? ' hot' : ''}`, x: room.x * U + 7 * k, y: room.y * U + font * 1.3 + 2 * k, 'font-size': font }, room.name));
   }
 
   map.append(svg('line', { class: 'link', x1: g.ax, y1: g.ay, x2: g.bx, y2: g.by }));
@@ -183,39 +191,46 @@ function renderMap() {
     for (const r of ['r1', 'r2', 'r3']) map.append(svg('circle', { class: `ring ${r}`, cx: g.bx, cy: g.by, r: 3.2 * U }));
   }
 
-  // Router
-  const router = svg('g', { class: edit ? 'draggable' : '', 'data-device': 'router' });
+  const router = svg('g', { class: edit ? 'draggable' : '', 'data-device': 'router', transform: `translate(${g.bx} ${g.by}) scale(${k})` });
   router.append(
-    svg('circle', { class: 'device', cx: g.bx, cy: g.by, r: 13 }),
-    svg('path', { class: 'device-mark', d: `M${g.bx - 7} ${g.by - 2} a10 10 0 0 1 14 0 M${g.bx - 3.5} ${g.by + 2} a5 5 0 0 1 7 0` }),
-    svg('circle', { cx: g.bx, cy: g.by + 6, r: 1.6, fill: '#3dff8f' }),
-    svg('text', { class: 'device-label', x: g.bx, y: g.by - 20, 'text-anchor': 'middle' }, 'ROUTER'),
+    svg('circle', { class: 'device', cx: 0, cy: 0, r: 13 }),
+    svg('path', { class: 'device-mark', d: 'M-7 -2 a10 10 0 0 1 14 0 M-3.5 2 a5 5 0 0 1 7 0' }),
+    svg('circle', { cx: 0, cy: 6, r: 1.6, fill: '#3dff8f' }),
+    svg('text', { class: 'device-label', x: 0, y: g.by < 46 * k ? 30 : -20, 'text-anchor': 'middle' }, 'ROUTER'),
   );
-  // PC
-  const pc = svg('g', { class: edit ? 'draggable' : '', 'data-device': 'pc' });
+  const pc = svg('g', { class: edit ? 'draggable' : '', 'data-device': 'pc', transform: `translate(${g.ax} ${g.ay}) scale(${k})` });
   pc.append(
-    svg('rect', { class: 'device', x: g.ax - 14, y: g.ay - 11, width: 28, height: 19, rx: 2 }),
-    svg('path', { class: 'device-mark', d: `M${g.ax - 7} ${g.ay + 13} h14 M${g.ax} ${g.ay + 8} v5` }),
-    svg('text', { class: 'device-label', x: g.ax, y: g.ay - 18, 'text-anchor': 'middle' }, 'PC'),
+    svg('rect', { class: 'device', x: -14, y: -11, width: 28, height: 19, rx: 2 }),
+    svg('path', { class: 'device-mark', d: 'M-7 13 h14 M0 8 v5' }),
+    svg('text', { class: 'device-label', x: 0, y: g.ay < 46 * k ? 30 : -18, 'text-anchor': 'middle' }, 'PC'),
   );
   map.append(router, pc);
 
   if (motion) {
+    // The app only knows "somewhere in the band", so the figure walks up and
+    // down the band instead of standing in one room.
     const small = state.motion.size === 'small';
-    const wrap = svg('g', { class: 'figure-wrap' });
+    const patrol = svg('g', { class: 'figure-patrol' });
+    patrol.style.setProperty('--dx', `${(g.bx - g.ax) * 0.3}px`);
+    patrol.style.setProperty('--dy', `${(g.by - g.ay) * 0.3}px`);
+    patrol.style.animationDelay = `-${Date.now() % 16000}ms`; // keeps its place when the map redraws
+    const fig = svg('g', { transform: `translate(${g.cx} ${g.cy}) scale(${k})` });
     if (small) {
-      wrap.append(svg('path', { class: 'figure', d: PET, transform: `translate(${g.cx - 30} ${g.cy - 20})` }));
+      fig.append(svg('path', { class: 'figure', d: PET, transform: 'translate(-30 -20)' }));
     } else {
-      const fig = svg('g', { transform: `translate(${g.cx - 20} ${g.cy - 52})` });
-      fig.append(svg('circle', { class: 'figure', cx: 20, cy: 9, r: 8 }), svg('path', { class: 'figure', d: PERSON }));
-      wrap.append(fig);
+      const body = svg('g', { transform: 'translate(-20 -52)' });
+      body.append(svg('circle', { class: 'figure', cx: 20, cy: 9, r: 8 }), svg('path', { class: 'figure', d: PERSON }));
+      fig.append(body);
     }
-    map.append(wrap, svg('text', { class: 'figure-label', x: g.cx, y: g.cy - (small ? 32 : 64) }, small ? 'SMALL MOVEMENT' : 'MOVEMENT'));
+    fig.append(svg('text', { class: 'figure-label', x: 0, y: small ? -32 : -64 }, small ? 'SMALL MOVEMENT IN THIS BAND' : 'MOVEMENT IN THIS BAND'));
+    patrol.append(fig);
+    map.append(patrol);
   }
 
   if (edit && edit.selected) {
     const room = plan.rooms.find((r) => r.id === edit.selected);
-    if (room) map.append(svg('rect', { class: 'handle', x: (room.x + room.w) * U - 9, y: (room.y + room.h) * U - 9, width: 18, height: 18, 'data-handle': room.id }));
+    const size = 18 * k;
+    if (room) map.append(svg('rect', { class: 'handle', x: (room.x + room.w) * U - size / 2, y: (room.y + room.h) * U - size / 2, width: size, height: size, 'data-handle': room.id }));
   }
 
   renderCaption(plan, covered);
@@ -224,13 +239,13 @@ function renderMap() {
 function renderCaption(plan, covered) {
   const caption = $('caption');
   if (edit) {
-    caption.textContent = 'Drag rooms to move them, drag the white corner to resize, and drag ROUTER and PC to where they really are. Then save.';
+    caption.textContent = 'Drag rooms to move them, drag the white corner to resize, and drag ROUTER and PC to where they really are. Out of space? Raise the two "Grid" numbers: you get more squares and everything is drawn smaller. Then save.';
     return;
   }
   const names = plan.rooms.filter((r) => covered.has(r.id)).map((r) => r.name);
   const zone = names.length ? `Sensing zone: ${names.join(', ')}.` : 'Sensing zone: the band between PC and router.';
   const example = plan.example ? ' This is an example layout: press "Edit layout" to draw your own home.' : '';
-  caption.textContent = `${zone} Movement outside the glowing band is not seen in this version. The figure marks the zone, not an exact spot, and its size is a guess from how strong the disturbance was.${example}`;
+  caption.textContent = `${zone} Movement outside the glowing band is not seen in this version. The app cannot tell which room in the band: the figure walks along the whole band to show that. Its size is a guess from how strong the disturbance was.${example}`;
 }
 
 /* ---------- layout editor ---------- */
@@ -244,7 +259,7 @@ function mapPoint(evt) {
   return { x: p.x / U, y: p.y / U };
 }
 
-const snap = (n) => Math.round(n * 2) / 2;
+const snap = (n) => Math.round(n * 4) / 4;
 const within = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
 function renderEditBar() {
@@ -256,6 +271,24 @@ function renderEditBar() {
   name.disabled = !room;
   if (document.activeElement !== name) name.value = room ? room.name : '';
   $('delRoomBtn').disabled = !room;
+  if (document.activeElement !== $('gridW')) $('gridW').value = edit.plan.width;
+  if (document.activeElement !== $('gridH')) $('gridH').value = edit.plan.height;
+}
+
+// The grid can never shrink past what is already drawn on it.
+function resizeGrid() {
+  const plan = edit.plan;
+  let minW = Math.max(6, plan.router.x, plan.pc.x);
+  let minH = Math.max(6, plan.router.y, plan.pc.y);
+  for (const r of plan.rooms) {
+    minW = Math.max(minW, r.x + r.w);
+    minH = Math.max(minH, r.y + r.h);
+  }
+  plan.width = within(Math.round(Number($('gridW').value) || plan.width), Math.ceil(minW), 80);
+  plan.height = within(Math.round(Number($('gridH').value) || plan.height), Math.ceil(minH), 80);
+  $('gridW').value = plan.width;
+  $('gridH').value = plan.height;
+  renderMap();
 }
 
 function startEdit() {
@@ -299,8 +332,8 @@ $('map').addEventListener('pointermove', (evt) => {
       room.x = within(snap(p.x - drag.dx), 0, plan.width - room.w);
       room.y = within(snap(p.y - drag.dy), 0, plan.height - room.h);
     } else {
-      room.w = within(snap(p.x - room.x), 1, plan.width - room.x);
-      room.h = within(snap(p.y - room.y), 1, plan.height - room.y);
+      room.w = within(snap(p.x - room.x), 0.5, plan.width - room.x);
+      room.h = within(snap(p.y - room.y), 0.5, plan.height - room.y);
     }
   }
   renderMap();
@@ -313,6 +346,8 @@ for (const type of ['pointerup', 'pointercancel']) {
 }
 
 $('editBtn').addEventListener('click', startEdit);
+$('gridW').addEventListener('change', resizeGrid);
+$('gridH').addEventListener('change', resizeGrid);
 $('cancelEditBtn').addEventListener('click', () => {
   edit = null;
   render();
@@ -320,7 +355,7 @@ $('cancelEditBtn').addEventListener('click', () => {
 $('addRoomBtn').addEventListener('click', () => {
   const id = `r${Date.now().toString(36)}`;
   const n = edit.plan.rooms.length;
-  edit.plan.rooms.push({ id, name: `Room ${n + 1}`, x: 1 + (n % 4), y: 1 + (n % 4), w: 5, h: 4 });
+  edit.plan.rooms.push({ id, name: `Room ${n + 1}`, x: (n % 4) * 0.5, y: (n % 4) * 0.5, w: 4, h: 3 });
   edit.selected = id;
   render();
   $('roomName').focus();
@@ -449,6 +484,8 @@ function fillSettings() {
   const s = state.settings;
   $('sensitivity').value = s.sensitivity;
   $('sensOut').textContent = s.sensitivity;
+  $('confirmSec').value = s.confirmSec;
+  $('quietSec').value = s.quietSec;
   $('armDelaySec').value = s.armDelaySec;
   $('alertCooldownSec').value = s.alertCooldownSec;
   $('ntfyEnabled').checked = s.ntfy.enabled;
@@ -476,6 +513,8 @@ function readSettings() {
   if ($('emailPass').value) email.pass = $('emailPass').value;
   return {
     sensitivity: $('sensitivity').value,
+    confirmSec: $('confirmSec').value,
+    quietSec: $('quietSec').value,
     armDelaySec: $('armDelaySec').value,
     alertCooldownSec: $('alertCooldownSec').value,
     ntfy: { enabled: $('ntfyEnabled').checked, topic: $('ntfyTopic').value, server: $('ntfyServer').value },
@@ -587,7 +626,10 @@ function connect() {
 setInterval(() => {
   if (state && state.mode === 'arming') renderStatus();
 }, 500);
-window.addEventListener('resize', renderChart);
+window.addEventListener('resize', () => {
+  renderChart();
+  if (state && !drag) renderMap();
+});
 
 load().catch(() => {});
 connect();

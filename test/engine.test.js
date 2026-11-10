@@ -130,3 +130,27 @@ test('the on/off choice survives a restart', () => {
   engine.setMode('off');
   assert.strictEqual(createStore(dir).config.mode, 'off');
 });
+
+test('a layout drawn in the demo is carried over to the real app, once', () => {
+  const demoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-demo-'));
+  const realDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-real-'));
+  const demo = createStore(demoDir);
+  demo.setPlan({ width: 30, height: 20, rooms: [{ id: 'k', name: 'Kitchen', x: 2, y: 2, w: 4.25, h: 0.5 }], router: { x: 1, y: 1 }, pc: { x: 9, y: 9 } });
+  const real = createStore(realDir, { importPlanFrom: demoDir });
+  assert.strictEqual(real.config.plan.example, false);
+  assert.strictEqual(real.config.plan.width, 30);
+  assert.deepStrictEqual(real.config.plan.rooms[0], { id: 'k', name: 'Kitchen', x: 2, y: 2, w: 4.25, h: 0.5 });
+  // Once the real app has its own layout, the demo never overwrites it.
+  real.setPlan({ rooms: [{ id: 'o', name: 'Office', x: 0, y: 0, w: 3, h: 3 }] });
+  demo.setPlan({ rooms: [] });
+  assert.strictEqual(createStore(realDir, { importPlanFrom: demoDir }).config.plan.rooms[0].name, 'Office');
+});
+
+test('the new timing settings are saved and kept in range', () => {
+  const { store, engine } = setup({ confirmSec: 3, quietSec: 500 });
+  assert.strictEqual(store.config.confirmSec, 3);
+  assert.strictEqual(store.config.quietSec, 60);
+  engine.settingsChanged();
+  assert.strictEqual(engine.detector.confirmMs, 3000);
+  assert.strictEqual(engine.snapshot().settings.quietSec, 60);
+});

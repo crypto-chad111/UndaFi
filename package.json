@@ -1,6 +1,6 @@
 {
   "name": "wifi-sentinel",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Home movement monitor that listens to the WiFi signal of this PC.",
   "main": "server.js",

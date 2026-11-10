@@ -45,7 +45,9 @@ function tailscaleIps() {
 }
 
 // Demo data is kept apart so it never mixes into the real event log.
-const store = createStore(path.join(__dirname, demo ? 'data-demo' : 'data'));
+const store = createStore(path.join(__dirname, demo ? 'data-demo' : 'data'), {
+  importPlanFrom: demo ? null : path.join(__dirname, 'data-demo'),
+});
 const engine = new Engine({
   store,
   demo,

@@ -12,7 +12,6 @@ const MEAN_MS = 60000; // normal signal level = median of the last minute
 const HISTORY_MS = 300000; // normal wobble = learned from the last 5 minutes
 const WARMUP_MS = 15000; // listen this long before judging anything
 const STD_FLOOR = 0.4; // dB; WiFi cards report whole or half dB steps
-const END_QUIET_MS = 5000; // movement ends after 5 quiet seconds
 const GAP_RESET_MS = 10000; // a silence this long means the sensor dropped out
 
 function clamp(n, lo, hi) {
@@ -21,9 +20,16 @@ function clamp(n, lo, hi) {
 
 // Sensitivity 1 (least) to 10 (most) -> how many times the normal wobble
 // counts as movement.
+// A perfectly still house already scores about 1, with peaks up to 2, so the
+// most sensitive setting must stay above that or it would alarm on nothing.
 function thresholdFor(sensitivity) {
-  const s = clamp(Number(sensitivity) || 6, 1, 10);
-  return Math.round((5.5 - 0.4 * s) * 100) / 100;
+  const s = clamp(Number(sensitivity) || 7, 1, 10);
+  return Math.round((5.1 - (s - 1) * 0.31) * 100) / 100;
+}
+
+// Movement counts as over once the level drops back near the still-house level.
+function endLevelFor(threshold) {
+  return Math.max(threshold * 0.65, 1.7);
 }
 
 function mean(values) {
@@ -40,6 +46,13 @@ function std(values) {
   return Math.sqrt(sq / values.length);
 }
 
+// Drops the single highest and lowest reading, so one glitchy reading from
+// the WiFi card cannot look like movement.
+function trimmed(values) {
+  if (values.length < 8) return values;
+  return [...values].sort((a, b) => a - b).slice(1, -1);
+}
+
 function percentile(values, p) {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -49,7 +62,10 @@ function percentile(values, p) {
 
 class Detector {
   constructor(options = {}) {
-    this.sensitivity = options.sensitivity || 6;
+    this.sensitivity = options.sensitivity || 7;
+    this.confirmMs = 1000; // movement must last this long before it counts
+    this.quietMs = 5000; // movement ends after this much quiet
+    this.configure(options);
     this.reset();
   }
 
@@ -59,14 +75,17 @@ class Detector {
     this.firstAt = null;
     this.lastAt = null;
     this.above = 0;
+    this.aboveSince = null;
     this.quietSince = null;
     this.motion = null; // { start, peak } while movement is in progress
     this.level = 0;
     this.baseStd = STD_FLOOR;
   }
 
-  setSensitivity(sensitivity) {
-    this.sensitivity = sensitivity;
+  configure({ sensitivity, confirmMs, quietMs } = {}) {
+    if (sensitivity !== undefined) this.sensitivity = sensitivity;
+    if (Number.isFinite(confirmMs)) this.confirmMs = confirmMs;
+    if (Number.isFinite(quietMs)) this.quietMs = quietMs;
   }
 
   get threshold() {
@@ -97,8 +116,9 @@ class Detector {
     const recent = [];
     const older = [];
     for (const s of this.samples) (s.t > t - WINDOW_MS ? recent : older).push(s.dbm);
-    const shortStd = std(recent);
-    const shortMean = mean(recent);
+    const steady = trimmed(recent);
+    const shortStd = std(steady);
+    const shortMean = mean(steady);
 
     const lastStd = this.stdHistory[this.stdHistory.length - 1];
     if (recent.length >= 5 && (!lastStd || t - lastStd.t >= 1000)) {
@@ -120,19 +140,21 @@ class Detector {
     if (this.ready) {
       if (this.level >= threshold) {
         this.above += 1;
+        if (this.aboveSince === null) this.aboveSince = t;
         this.quietSince = null;
-        if (!this.motion && this.above >= 2) {
+        if (!this.motion && this.above >= 2 && t - this.aboveSince >= this.confirmMs) {
           this.motion = { start: t, peak: this.level };
           started = { start: t, peak: this.level };
         }
       } else {
         this.above = 0;
+        this.aboveSince = null;
       }
       if (this.motion) {
         this.motion.peak = Math.max(this.motion.peak, this.level);
-        if (this.level < threshold * 0.6) {
+        if (this.level < endLevelFor(threshold)) {
           if (this.quietSince === null) this.quietSince = t;
-          if (t - this.quietSince >= END_QUIET_MS) ended = this.finish(t);
+          if (t - this.quietSince >= this.quietMs) ended = this.finish(t);
         } else {
           this.quietSince = null;
         }
@@ -154,6 +176,7 @@ class Detector {
     const done = { start: this.motion.start, end: t, peak: this.motion.peak, size: this.sizeFor(this.motion.peak) };
     this.motion = null;
     this.above = 0;
+    this.aboveSince = null;
     this.quietSince = null;
     return done;
   }

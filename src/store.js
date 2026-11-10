@@ -12,7 +12,9 @@ const MAX_EVENTS = 500;
 function defaults() {
   return {
     mode: 'off',
-    sensitivity: 6,
+    sensitivity: 7,
+    confirmSec: 1,
+    quietSec: 5,
     armDelaySec: 60,
     alertCooldownSec: 120,
     ntfy: { enabled: false, server: 'https://ntfy.sh', topic: '' },
@@ -30,6 +32,8 @@ function sanitizeSettings(input, current) {
   const src = input && typeof input === 'object' ? input : {};
   const next = JSON.parse(JSON.stringify(current));
   if ('sensitivity' in src) next.sensitivity = int(src.sensitivity, 1, 10, current.sensitivity);
+  if ('confirmSec' in src) next.confirmSec = int(src.confirmSec, 0, 15, current.confirmSec);
+  if ('quietSec' in src) next.quietSec = int(src.quietSec, 2, 60, current.quietSec);
   if ('armDelaySec' in src) next.armDelaySec = int(src.armDelaySec, 0, 600, current.armDelaySec);
   if ('alertCooldownSec' in src) next.alertCooldownSec = int(src.alertCooldownSec, 10, 3600, current.alertCooldownSec);
   if (src.ntfy && typeof src.ntfy === 'object') {
@@ -61,6 +65,8 @@ function publicSettings(config) {
   const { pass, ...email } = config.email;
   return {
     sensitivity: config.sensitivity,
+    confirmSec: config.confirmSec,
+    quietSec: config.quietSec,
     armDelaySec: config.armDelaySec,
     alertCooldownSec: config.alertCooldownSec,
     ntfy: { ...config.ntfy },
@@ -68,7 +74,7 @@ function publicSettings(config) {
   };
 }
 
-function createStore(dir) {
+function createStore(dir, options = {}) {
   const configFile = path.join(dir, 'config.json');
   const eventsFile = path.join(dir, 'events.json');
   fs.mkdirSync(dir, { recursive: true });
@@ -94,6 +100,15 @@ function createStore(dir) {
   if (saved.email && typeof saved.email.pass === 'string') config.email.pass = saved.email.pass;
   config.mode = ['off', 'test', 'armed'].includes(saved.mode) ? saved.mode : 'off';
   config.plan = saved.plan ? sanitizePlan(saved.plan) : base.plan;
+
+  // A layout drawn while trying the demo is carried over, so it is not lost.
+  if (config.plan.example && options.importPlanFrom) {
+    const other = read(path.join(options.importPlanFrom, 'config.json'), null);
+    if (other && other.plan && other.plan.example === false) {
+      config.plan = sanitizePlan(other.plan);
+      write(configFile, config);
+    }
+  }
 
   let events = read(eventsFile, []);
   if (!Array.isArray(events)) events = [];

@@ -24,7 +24,7 @@ class Engine extends EventEmitter {
     this.sendAlert = sendAlert;
     this.demo = demo;
     this.now = now;
-    this.detector = new Detector({ sensitivity: store.config.sensitivity });
+    this.detector = new Detector(this.detectorOptions());
     this.sensor = createSensor({
       onSample: (sample) => this.onSample(sample),
       onStatus: (status) => this.onSensorStatus(status),
@@ -40,6 +40,11 @@ class Engine extends EventEmitter {
     this.lastResult = { ready: false, level: 0, threshold: this.detector.threshold, motion: null };
     this.lastNotify = null;
     this.timer = null;
+  }
+
+  detectorOptions() {
+    const c = this.store.config;
+    return { sensitivity: c.sensitivity, confirmMs: c.confirmSec * 1000, quietMs: c.quietSec * 1000 };
   }
 
   // Called once at startup: carry on in whatever mode the app was left in.
@@ -221,7 +226,7 @@ class Engine extends EventEmitter {
   }
 
   settingsChanged() {
-    this.detector.setSensitivity(this.store.config.sensitivity);
+    this.detector.configure(this.detectorOptions());
     this.emit('state');
   }
 
