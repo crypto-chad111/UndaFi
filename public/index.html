@@ -58,6 +58,7 @@
           <span>Movement level</span>
           <div class="meter"><div id="meterFill"></div><div id="meterMark"></div></div>
         </div>
+        <p id="diag" class="diag"></p>
         <button id="recalBtn" class="btn small">Relearn the quiet signal</button>
       </section>
 
@@ -81,6 +82,10 @@
           <input id="sensitivity" type="range" min="1" max="10" step="1">
         </label>
         <p class="hint">Higher catches smaller movement but gives more false alarms.</p>
+        <label class="check"><input id="useSpeed" type="checkbox"> Also watch the WiFi link speed</label>
+        <p class="hint">A second way to notice movement, for WiFi cards whose signal reading barely changes. Switch it off if it causes false alarms.</p>
+        <label class="check"><input id="keepBusy" type="checkbox"> Keep the WiFi link busy while monitoring</label>
+        <p class="hint">Sends a tiny packet to your router ten times a second, so the WiFi card keeps its readings fresh. It stays inside your home network.</p>
         <div class="two">
           <label>Movement must last at least (seconds)
             <input id="confirmSec" type="number" min="0" max="15">

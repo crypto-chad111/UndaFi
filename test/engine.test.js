@@ -154,3 +154,45 @@ test('the new timing settings are saved and kept in range', () => {
   assert.strictEqual(engine.detector.confirmMs, 3000);
   assert.strictEqual(engine.snapshot().settings.quietSec, 60);
 });
+
+test('the keep-busy trickle runs only while monitoring, follows its setting, and never in the demo', () => {
+  const make = (demo, settings) => {
+    const store = createStore(fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-probe-')));
+    store.updateSettings({ armDelaySec: 0, ...settings });
+    const calls = [];
+    const engine = new Engine({
+      store,
+      demo,
+      sendAlert: async () => ({}),
+      createSensor: () => ({ start() {}, stop() {} }),
+      createProbe: () => ({ start: () => calls.push('start'), stop: () => calls.push('stop') }),
+    });
+    return { engine, store, calls };
+  };
+  const a = make(false, {});
+  assert.deepStrictEqual(a.calls, []);
+  a.engine.setMode('test');
+  assert.deepStrictEqual(a.calls, ['start']);
+  a.store.updateSettings({ keepBusy: false });
+  a.engine.settingsChanged();
+  assert.deepStrictEqual(a.calls, ['start', 'stop']);
+  a.engine.setMode('off');
+
+  const b = make(false, { keepBusy: false });
+  b.engine.setMode('armed');
+  assert.ok(!b.calls.includes('start'));
+  b.engine.setMode('off');
+
+  const c = make(true, {});
+  c.engine.setMode('test');
+  assert.deepStrictEqual(c.calls, []);
+  c.engine.setMode('off');
+});
+
+test('the log records whether signal or link speed noticed the movement', async () => {
+  const { engine, store, play } = setup();
+  engine.setMode('test');
+  play(60, false);
+  play(10, true);
+  assert.strictEqual(store.events[0].trigger, 'signal');
+});

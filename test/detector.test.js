@@ -137,3 +137,59 @@ test('"must last" ignores a blip shorter than the setting', () => {
   assert.strictEqual(run(0), 1);
   assert.strictEqual(run(15000), 0);
 });
+
+test('a flat signal that jumps in a step (like some WiFi cards) is detected', () => {
+  const d = new Detector({ sensitivity: 7 });
+  const flat = feed(d, 0, 120, () => -70);
+  assert.strictEqual(flat.started.length, 0);
+  const step = feed(d, 120000, 20, () => -66);
+  assert.strictEqual(step.started.length, 1);
+  assert.strictEqual(step.started[0].trigger, 'signal');
+  const settle = feed(d, 140000, 120, () => -66);
+  assert.strictEqual(settle.ended.length, 1, 'the new level becomes normal again');
+  assert.strictEqual(settle.started.length, 0);
+});
+
+test('a signal that flips between two neighbouring values is not movement', () => {
+  const rand = rng(11);
+  const d = new Detector({ sensitivity: 10 });
+  let value = -66;
+  let left = 0;
+  const seen = feed(d, 0, 1800, () => {
+    if (left <= 0) {
+      value = rand() < 0.5 ? -66 : -67;
+      left = 12 + rand() * 120;
+    }
+    left -= 1;
+    return value;
+  });
+  assert.strictEqual(seen.started.length, 0);
+});
+
+// Like feed(), but with link speeds as well as signal.
+function feedSpeed(detector, from, seconds, readingAt) {
+  const seen = { started: [], ended: [] };
+  for (let t = from; t < from + seconds * 1000; t += 400) {
+    const r = detector.push(t, readingAt(t));
+    if (r.started) seen.started.push(r.started);
+    if (r.ended) seen.ended.push(r.ended);
+  }
+  return seen;
+}
+
+test('movement that only shows in the link speed is detected, and can be switched off', () => {
+  const run = (useSpeed) => {
+    const rand = rng(12);
+    const d = new Detector({ sensitivity: 7, useSpeed });
+    const calm = () => ({ dbm: -70, rx: 866.7, tx: rand() < 0.9 ? 866.7 : 780 });
+    const before = feedSpeed(d, 0, 120, calm);
+    const during = feedSpeed(d, 120000, 12, (t) => ({ dbm: -70, rx: 866.7, tx: [866.7, 433.3, 260, 585][Math.floor(t / 1200) % 4] }));
+    return { before: before.started.length, during: during.started };
+  };
+  const on = run(true);
+  assert.strictEqual(on.before, 0);
+  assert.strictEqual(on.during.length, 1);
+  assert.strictEqual(on.during[0].trigger, 'speed');
+  const off = run(false);
+  assert.strictEqual(off.during.length, 0);
+});

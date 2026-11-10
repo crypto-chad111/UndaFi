@@ -29,9 +29,12 @@ strength, read a few times a second.
 - find walls. You draw your floor plan once, by hand, in the app;
 - tell which room in the band the movement was in. The figure walks up and
   down the whole band to show "somewhere in here". It does not mark a spot;
-- be widened by a setting. The band is the path the signal really travels
-  between the PC and the router. Higher sensitivity catches weaker movement
-  inside the band; it does not reach other rooms;
+- be widened by a setting. Your WiFi reaches the whole home (the rings on
+  the map show that), but the app can only listen at one place: the PC. What
+  the PC hears most is the path between it and the router. Movement in other
+  rooms does bounce the signal a little, but far too little for a PC's rough
+  signal reading. Higher sensitivity catches weaker movement inside the
+  band; it does not reach other rooms;
 - tell a person from a pet. "Small" only means a weaker disturbance. A cat
   near the PC can look bigger than a person far from it;
 - promise anything. Signal strength is a rough measure. Expect some false
@@ -40,6 +43,23 @@ strength, read a few times a second.
 
 Whole-home coverage, real positions and telling people from pets need small
 sensor boards. That is version 2, at the bottom of this page.
+
+## How well can my PC sense? (the readings under the chart)
+
+WiFi cards differ a lot. Under the signal chart the dashboard shows what
+yours is reporting:
+
+- **"Signal reading changed N times"**: a lively card changes many times a
+  minute. If yours changes only a few times, it shows a flat line that jumps
+  in steps, and movement is hard to see with it.
+- **Link speed** (the dotted line): a second way to notice movement, used
+  when "Also watch the WiFi link speed" is ticked in the settings.
+- **Keeping the link busy**: with this on, the app sends a tiny packet to
+  your router ten times a second while monitoring, so the card keeps its
+  readings fresh. It stays inside your home network.
+- **Movement level now**: how disturbed signal and speed are, and the level
+  at which movement is declared. Each log entry says which of the two
+  noticed the movement.
 
 ## Start it (Windows)
 
@@ -127,7 +147,7 @@ ON, and carries on after a restart (with the countdown again).
 
 ## What has and has not been tested
 
-Tested (automated, `npm test`, 39 checks):
+Tested (automated, `npm test`, 49 checks):
 
 - the movement detector, on simulated signals;
 - reading Windows' WiFi report, from sample text (English and German);

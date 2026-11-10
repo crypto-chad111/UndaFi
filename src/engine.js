@@ -18,7 +18,7 @@ const HISTORY_MS = 120000;
 const SENSOR_LOST_MS = 60000;
 
 class Engine extends EventEmitter {
-  constructor({ store, createSensor, sendAlert, demo = false, now = Date.now }) {
+  constructor({ store, createSensor, createProbe, sendAlert, demo = false, now = Date.now }) {
     super();
     this.store = store;
     this.sendAlert = sendAlert;
@@ -29,6 +29,16 @@ class Engine extends EventEmitter {
       onSample: (sample) => this.onSample(sample),
       onStatus: (status) => this.onSensorStatus(status),
     });
+    // The demo never sends anything onto the network.
+    this.probeState = { state: 'off', targets: [] };
+    this.probe = createProbe && !demo
+      ? createProbe({
+          onStatus: (status) => {
+            this.probeState = status;
+            this.emit('state');
+          },
+        })
+      : null;
     this.mode = 'off';
     this.armAt = null;
     this.sensorState = { status: 'idle', detail: '', ssid: '' };
@@ -44,7 +54,7 @@ class Engine extends EventEmitter {
 
   detectorOptions() {
     const c = this.store.config;
-    return { sensitivity: c.sensitivity, confirmMs: c.confirmSec * 1000, quietMs: c.quietSec * 1000 };
+    return { sensitivity: c.sensitivity, confirmMs: c.confirmSec * 1000, quietMs: c.quietSec * 1000, useSpeed: c.useSpeed };
   }
 
   // Called once at startup: carry on in whatever mode the app was left in.
@@ -67,6 +77,7 @@ class Engine extends EventEmitter {
     this.store.setMode(target);
     if (target === 'off') {
       this.sensor.stop();
+      if (this.probe) this.probe.stop();
       clearInterval(this.timer);
       this.timer = null;
       this.closeCurrent(this.now());
@@ -92,6 +103,7 @@ class Engine extends EventEmitter {
       if (wasOff) {
         this.sensorState = { status: 'starting', detail: '', ssid: '' };
         this.sensor.start();
+        if (this.probe && this.store.config.keepBusy) this.probe.start();
         this.timer = setInterval(() => this.tick(), 1000);
         if (this.timer.unref) this.timer.unref();
       }
@@ -129,12 +141,12 @@ class Engine extends EventEmitter {
     if (changed) this.emit('state');
   }
 
-  onSample({ t, dbm }) {
+  onSample({ t, dbm, rx, tx }) {
     if (this.mode === 'off') return;
-    const result = this.detector.push(t, dbm);
+    const result = this.detector.push(t, { dbm, rx, tx });
     const wasReady = this.lastResult.ready;
     this.lastResult = result;
-    this.history.push({ t, dbm, level: result.level });
+    this.history.push({ t, dbm, level: result.level, rx, tx });
     while (this.history.length && this.history[0].t < t - HISTORY_MS) this.history.shift();
 
     let changed = wasReady !== result.ready;
@@ -152,7 +164,7 @@ class Engine extends EventEmitter {
       this.current.peak = Math.round(result.motion.peak * 100) / 100;
       this.current.size = size;
     }
-    this.emit('sample', { t, dbm, level: result.level });
+    this.emit('sample', { t, dbm, level: result.level, rx, tx });
     if (changed) this.emit('state');
   }
 
@@ -165,6 +177,7 @@ class Engine extends EventEmitter {
       end: null,
       peak: Math.round(started.peak * 100) / 100,
       size: this.detector.sizeFor(started.peak),
+      trigger: started.trigger,
       rooms,
       armed,
       demo: this.demo || undefined,
@@ -227,7 +240,26 @@ class Engine extends EventEmitter {
 
   settingsChanged() {
     this.detector.configure(this.detectorOptions());
+    if (this.probe && this.mode !== 'off') {
+      if (this.store.config.keepBusy) this.probe.start();
+      else this.probe.stop();
+    }
     this.emit('state');
+  }
+
+  // Plain facts about what the WiFi card is giving us, for the dashboard.
+  diagnostics() {
+    const h = this.history;
+    let changes = 0;
+    for (let i = 1; i < h.length; i += 1) if (h[i].dbm !== h[i - 1].dbm) changes += 1;
+    const last = h[h.length - 1];
+    return {
+      seconds: h.length ? Math.round((last.t - h[0].t) / 1000) : 0,
+      changes,
+      rx: last && Number.isFinite(last.rx) ? last.rx : null,
+      tx: last && Number.isFinite(last.tx) ? last.tx : null,
+      probe: this.probeState,
+    };
   }
 
   snapshot({ withHistory = false } = {}) {
@@ -239,7 +271,8 @@ class Engine extends EventEmitter {
       armAt: this.armAt,
       now: this.now(),
       sensor: this.sensorState,
-      detector: { ready: r.ready, level: r.level, threshold: this.detector.threshold },
+      detector: { ready: r.ready, level: r.level, levels: r.levels || { signal: 0, speed: 0 }, threshold: this.detector.threshold },
+      diag: this.diagnostics(),
       motion: this.current ? { start: this.current.start, size: this.current.size } : null,
       linkRooms: roomsOnLink(config.plan).map((room) => room.id),
       settings: publicSettings(config),

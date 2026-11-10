@@ -15,6 +15,8 @@ function defaults() {
     sensitivity: 7,
     confirmSec: 1,
     quietSec: 5,
+    useSpeed: true,
+    keepBusy: true,
     armDelaySec: 60,
     alertCooldownSec: 120,
     ntfy: { enabled: false, server: 'https://ntfy.sh', topic: '' },
@@ -34,6 +36,8 @@ function sanitizeSettings(input, current) {
   if ('sensitivity' in src) next.sensitivity = int(src.sensitivity, 1, 10, current.sensitivity);
   if ('confirmSec' in src) next.confirmSec = int(src.confirmSec, 0, 15, current.confirmSec);
   if ('quietSec' in src) next.quietSec = int(src.quietSec, 2, 60, current.quietSec);
+  if ('useSpeed' in src) next.useSpeed = Boolean(src.useSpeed);
+  if ('keepBusy' in src) next.keepBusy = Boolean(src.keepBusy);
   if ('armDelaySec' in src) next.armDelaySec = int(src.armDelaySec, 0, 600, current.armDelaySec);
   if ('alertCooldownSec' in src) next.alertCooldownSec = int(src.alertCooldownSec, 10, 3600, current.alertCooldownSec);
   if (src.ntfy && typeof src.ntfy === 'object') {
@@ -67,6 +71,8 @@ function publicSettings(config) {
     sensitivity: config.sensitivity,
     confirmSec: config.confirmSec,
     quietSec: config.quietSec,
+    useSpeed: config.useSpeed,
+    keepBusy: config.keepBusy,
     armDelaySec: config.armDelaySec,
     alertCooldownSec: config.alertCooldownSec,
     ntfy: { ...config.ntfy },

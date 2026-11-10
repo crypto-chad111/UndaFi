@@ -13,6 +13,7 @@ const { execFile } = require('node:child_process');
 const { createStore } = require('./src/store');
 const { createSensor } = require('./src/sensors');
 const { sendAlert } = require('./src/notify');
+const { createProbe } = require('./src/probe');
 const { Engine } = require('./src/engine');
 const { createHandler } = require('./src/http');
 
@@ -52,6 +53,7 @@ const engine = new Engine({
   store,
   demo,
   sendAlert,
+  createProbe,
   createSensor: (handlers) => createSensor({ demo, ...handlers }),
 });
 

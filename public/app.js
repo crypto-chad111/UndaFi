@@ -188,7 +188,16 @@ function renderMap() {
   map.append(svg('line', { class: 'link', x1: g.ax, y1: g.ay, x2: g.bx, y2: g.by }));
 
   if (watching) {
-    for (const r of ['r1', 'r2', 'r3']) map.append(svg('circle', { class: `ring ${r}`, cx: g.bx, cy: g.by, r: 3.2 * U }));
+    // The WiFi pulse spreads from the router across the whole home, because
+    // the WiFi itself does reach every room. (Where the app can notice
+    // movement is the glowing band, not the rings.)
+    const reach = Math.max(
+      Math.hypot(g.bx, g.by),
+      Math.hypot(W - g.bx, g.by),
+      Math.hypot(g.bx, H - g.by),
+      Math.hypot(W - g.bx, H - g.by),
+    );
+    for (const r of ['r1', 'r2', 'r3', 'r4']) map.append(svg('circle', { class: `ring ${r}`, cx: g.bx, cy: g.by, r: reach }));
   }
 
   const router = svg('g', { class: edit ? 'draggable' : '', 'data-device': 'router', transform: `translate(${g.bx} ${g.by}) scale(${k})` });
@@ -245,7 +254,7 @@ function renderCaption(plan, covered) {
   const names = plan.rooms.filter((r) => covered.has(r.id)).map((r) => r.name);
   const zone = names.length ? `Sensing zone: ${names.join(', ')}.` : 'Sensing zone: the band between PC and router.';
   const example = plan.example ? ' This is an example layout: press "Edit layout" to draw your own home.' : '';
-  caption.textContent = `${zone} Movement outside the glowing band is not seen in this version. The app cannot tell which room in the band: the figure walks along the whole band to show that. Its size is a guess from how strong the disturbance was.${example}`;
+  caption.textContent = `The rings show your WiFi reaching the whole home. ${zone} That glowing band is where this version can notice movement; movement in other rooms is mostly missed. The app cannot tell which room in the band: the figure walks along the whole band to show that. Its size is a guess from how strong the disturbance was.${example}`;
 }
 
 /* ---------- layout editor ---------- */
@@ -415,6 +424,7 @@ function renderChart() {
   fill.style.width = `${Math.min(100, (level / (threshold * 2)) * 100)}%`;
   fill.className = level >= threshold ? 'over' : '';
 
+  renderDiag();
   if (history.length < 2 || !monitoring()) return;
   const end = last.t;
   const span = 120000;
@@ -430,6 +440,27 @@ function renderChart() {
   const x = (t) => w - ((end - t) / span) * w;
   const y = (v) => h - ((v - lo) / (hi - lo)) * h;
 
+  // Link speed (PC to router) as a dim dotted line, on its own scale.
+  const speeds = history.filter((s) => Number.isFinite(s.tx));
+  if (speeds.length > 1) {
+    let slo = Infinity;
+    let shi = -Infinity;
+    for (const s of speeds) {
+      slo = Math.min(slo, s.tx);
+      shi = Math.max(shi, s.tx);
+    }
+    const mid = (slo + shi) / 2;
+    const range = Math.max(shi - slo, mid * 0.5, 1);
+    const ys = (v) => h / 2 - ((v - mid) / range) * h * 0.8;
+    ctx.strokeStyle = '#17703f';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    speeds.forEach((s, i) => (i ? ctx.lineTo(x(s.t), ys(s.tx)) : ctx.moveTo(x(s.t), ys(s.tx))));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   for (let i = 1; i < history.length; i += 1) {
     const a = history[i - 1];
     const b = history[i];
@@ -444,6 +475,34 @@ function renderChart() {
     ctx.stroke();
   }
   ctx.shadowBlur = 0;
+}
+
+// Plain facts about what the WiFi card is reporting. Useful for judging how
+// well this PC can sense movement at all.
+function renderDiag() {
+  const box = $('diag');
+  box.replaceChildren();
+  if (!state || !monitoring() || history.length < 2) return;
+  let changes = 0;
+  for (let i = 1; i < history.length; i += 1) if (history[i].dbm !== history[i - 1].dbm) changes += 1;
+  const seconds = Math.max(1, Math.round((history[history.length - 1].t - history[0].t) / 1000));
+  const lines = [`Signal reading changed ${changes} time${changes === 1 ? '' : 's'} in the last ${seconds}s`];
+  const last = history[history.length - 1];
+  if (Number.isFinite(last.tx) || Number.isFinite(last.rx)) {
+    lines.push(`Link speed (dotted line): down ${Number.isFinite(last.rx) ? last.rx : '?'} / up ${Number.isFinite(last.tx) ? last.tx : '?'} Mbps`);
+  } else if (!state.demo) {
+    lines.push('Link speed: not reported by this WiFi card');
+  }
+  const d = state.detector.levels;
+  if (d) lines.push(`Movement level now: signal ${d.signal.toFixed(1)} · speed ${d.speed.toFixed(1)} · alarm at ${state.detector.threshold.toFixed(1)}`);
+  const probe = state.diag && state.diag.probe;
+  if (probe && !state.demo) {
+    lines.push(probe.state === 'on' ? `Keeping the link busy: on (router ${probe.targets.join(', ')})` : probe.state === 'no-router' ? 'Keeping the link busy: could not find the router' : 'Keeping the link busy: off');
+  }
+  for (const text of lines) box.append(el('div', '', text));
+  if (seconds >= 60 && changes <= 2) {
+    box.append(el('div', 'warnline', 'This WiFi card refreshes its signal reading very rarely. Movement is hard to see with it.'));
+  }
 }
 
 /* ---------- movement log ---------- */
@@ -463,7 +522,8 @@ function renderEvents() {
     const when = el('span', 'when', `${day}${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`);
     const length = e.end ? `${Math.max(1, Math.round((e.end - e.start) / 1000))}s` : 'now';
     const size = e.size === 'large' ? 'large' : 'small';
-    li.append(when, el('span', 'meta', `  ${length} · ${size}${e.demo ? ' · demo' : ''}`));
+    const by = e.trigger === 'speed' ? ' · seen in link speed' : e.trigger === 'signal' ? ' · seen in signal' : '';
+    li.append(when, el('span', 'meta', `  ${length} · ${size}${by}${e.demo ? ' · demo' : ''}`));
     if (e.rooms && e.rooms.length) li.append(el('div', 'meta', e.rooms.join(', ')));
     const note = el('div', 'meta');
     if (!e.armed) note.textContent = 'test mode, no alert';
@@ -484,6 +544,8 @@ function fillSettings() {
   const s = state.settings;
   $('sensitivity').value = s.sensitivity;
   $('sensOut').textContent = s.sensitivity;
+  $('useSpeed').checked = s.useSpeed;
+  $('keepBusy').checked = s.keepBusy;
   $('confirmSec').value = s.confirmSec;
   $('quietSec').value = s.quietSec;
   $('armDelaySec').value = s.armDelaySec;
@@ -513,6 +575,8 @@ function readSettings() {
   if ($('emailPass').value) email.pass = $('emailPass').value;
   return {
     sensitivity: $('sensitivity').value,
+    useSpeed: $('useSpeed').checked,
+    keepBusy: $('keepBusy').checked,
     confirmSec: $('confirmSec').value,
     quietSec: $('quietSec').value,
     armDelaySec: $('armDelaySec').value,

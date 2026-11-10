@@ -5,7 +5,8 @@
 
 const { execFile } = require('node:child_process');
 
-// Turns the text Windows prints into { connected, dbm, ssid, saturated }.
+// Turns the text Windows prints into { connected, dbm, ssid, saturated, rx, tx }
+// (rx/tx = receive/transmit link speed in Mbps, when Windows shows them).
 // Only digits, "%" and the words SSID/Rssi are relied on, so it also works on
 // Windows installs that are not in English.
 function parseNetsh(text) {
@@ -16,8 +17,13 @@ function parseNetsh(text) {
     const quality = Math.min(100, Number(pct[1]));
     const rssi = block.match(/^\s*Rssi\s*:\s*(-\d{1,3})\s*$/im);
     const ssid = block.match(/^\s*SSID\s*:\s*(.*?)\s*$/m);
+    // "Receive rate (Mbps) : 866.7" then "Transmit rate (Mbps) : 866.7"; the
+    // unit in brackets is the same in every language, the words are not.
+    const speeds = [...block.matchAll(/\((?:[MG]bps|[MG]bit\/s)\)\s*:\s*([\d.,]+)\s*$/gim)].map((m) => Number(m[1].replace(',', '.')));
     return {
       connected: true,
+      rx: Number.isFinite(speeds[0]) ? speeds[0] : undefined,
+      tx: Number.isFinite(speeds[1]) ? speeds[1] : undefined,
       dbm: rssi ? Number(rssi[1]) : quality / 2 - 100,
       ssid: ssid ? ssid[1] : '',
       // Without the Rssi line Windows tops out at 100% (-50 dBm): a very
@@ -68,7 +74,7 @@ function createWindowsSensor({ intervalMs = 400, onSample, onStatus, run = execF
               ? 'Signal reads 100%, which hides small changes. Detection works better if the PC is a room or two away from the router.'
               : '',
           });
-          onSample({ t: Date.now(), dbm: parsed.dbm });
+          onSample({ t: Date.now(), dbm: parsed.dbm, rx: parsed.rx, tx: parsed.tx });
         }
       }
       timer = setTimeout(poll, intervalMs);
