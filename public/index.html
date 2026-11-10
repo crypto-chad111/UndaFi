@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#040806">
+  <title>WiFi Sentinel</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1.2"/></svg>
+      <span>WIFI SENTINEL</span>
+      <span id="demoBadge" class="badge" hidden>DEMO · made-up signal</span>
+    </div>
+    <div class="conn"><span id="connDot" class="dot"></span><span id="connText">Connecting</span></div>
+  </header>
+
+  <main>
+    <section class="panel map-panel">
+      <div class="map-head">
+        <div id="statusLine" class="status">Loading</div>
+        <button id="editBtn" class="btn">Edit layout</button>
+      </div>
+      <div id="editBar" class="edit-bar" hidden>
+        <button id="addRoomBtn" class="btn">Add room</button>
+        <label class="inline">Name <input id="roomName" type="text" maxlength="40" placeholder="Tap a room first" disabled></label>
+        <button id="delRoomBtn" class="btn" disabled>Delete room</button>
+        <span class="spacer"></span>
+        <button id="cancelEditBtn" class="btn">Cancel</button>
+        <button id="saveEditBtn" class="btn solid">Save layout</button>
+      </div>
+      <div id="sensorWarn" class="warn" hidden></div>
+      <div class="map-wrap"><svg id="map" role="img" aria-label="Floor plan of the home with the sensing zone"></svg></div>
+      <p id="caption" class="caption"></p>
+    </section>
+
+    <aside class="side">
+      <section class="panel power">
+        <button id="powerBtn" class="power-btn" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>
+          <span id="powerLabel">OFF</span>
+        </button>
+        <div class="power-text">
+          <div id="powerTitle" class="power-title">Monitoring is off</div>
+          <div id="powerSub" class="power-sub">Press the button when you leave.</div>
+          <button id="testBtn" class="btn small">Test at home (no alerts)</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>WiFi signal <span id="signalNow" class="h-value"></span></h2>
+        <canvas id="chart" height="110"></canvas>
+        <div class="meter-row">
+          <span>Movement level</span>
+          <div class="meter"><div id="meterFill"></div><div id="meterMark"></div></div>
+        </div>
+        <button id="recalBtn" class="btn small">Relearn the quiet signal</button>
+      </section>
+
+      <section class="panel events">
+        <h2>Movement log <button id="clearBtn" class="btn small right">Clear</button></h2>
+        <ul id="eventList"></ul>
+      </section>
+
+      <button id="settingsBtn" class="btn wide">Alerts and settings</button>
+      <p id="urls" class="caption"></p>
+    </aside>
+  </main>
+
+  <dialog id="settingsDlg">
+    <form id="settingsForm" method="dialog">
+      <h2>Alerts and settings</h2>
+
+      <fieldset>
+        <legend>Detection</legend>
+        <label>Sensitivity <output id="sensOut"></output>
+          <input id="sensitivity" type="range" min="1" max="10" step="1">
+        </label>
+        <p class="hint">Higher catches smaller movement but gives more false alarms.</p>
+        <div class="two">
+          <label>Time to leave after switching on (seconds)
+            <input id="armDelaySec" type="number" min="0" max="600">
+          </label>
+          <label>Quiet time between alerts (seconds)
+            <input id="alertCooldownSec" type="number" min="10" max="3600">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Phone push (ntfy)</legend>
+        <label class="check"><input id="ntfyEnabled" type="checkbox"> Send push alerts to my phone</label>
+        <label>Topic name (works like a password, keep it private)
+          <span class="row"><input id="ntfyTopic" type="text" maxlength="64" autocomplete="off"><button id="genTopicBtn" type="button" class="btn small">Make one</button></span>
+        </label>
+        <label>ntfy server
+          <input id="ntfyServer" type="url" maxlength="200">
+        </label>
+        <p class="hint">Install the free "ntfy" app on your phone, tap +, and subscribe to exactly this topic name.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Email</legend>
+        <label class="check"><input id="emailEnabled" type="checkbox"> Send email alerts</label>
+        <div class="two">
+          <label>Mail server (SMTP)
+            <input id="emailHost" type="text" maxlength="200" placeholder="smtp.gmail.com" autocomplete="off">
+          </label>
+          <label>Port
+            <input id="emailPort" type="number" min="1" max="65535">
+          </label>
+        </div>
+        <div class="two">
+          <label>Username
+            <input id="emailUser" type="text" maxlength="200" autocomplete="off">
+          </label>
+          <label>Password <span id="passState" class="hint"></span>
+            <input id="emailPass" type="password" maxlength="200" autocomplete="new-password" placeholder="Leave empty to keep">
+          </label>
+        </div>
+        <div class="two">
+          <label>Send from
+            <input id="emailFrom" type="email" maxlength="200" placeholder="Same as username if empty">
+          </label>
+          <label>Send to
+            <input id="emailTo" type="email" maxlength="200">
+          </label>
+        </div>
+        <p class="hint">For Gmail, use an "app password", not your normal password. The password is saved only on this PC.</p>
+      </fieldset>
+
+      <p id="settingsMsg" class="hint msg" role="status"></p>
+      <div class="dlg-actions">
+        <button id="testAlertBtn" type="button" class="btn">Save and send test alert</button>
+        <span class="spacer"></span>
+        <button id="closeSettingsBtn" type="button" class="btn">Close</button>
+        <button id="saveSettingsBtn" type="button" class="btn solid">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
