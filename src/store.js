@@ -14,7 +14,7 @@ function defaults() {
     mode: 'off',
     sensitivity: 7,
     confirmSec: 1,
-    quietSec: 5,
+    quietSec: 3,
     useSpeed: true,
     keepBusy: true,
     armDelaySec: 60,

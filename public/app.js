@@ -216,13 +216,10 @@ function renderMap() {
   map.append(router, pc);
 
   if (motion) {
-    // The app only knows "somewhere in the band", so the figure walks up and
-    // down the band instead of standing in one room.
+    // The figure is a marker for "movement somewhere in this band". It does
+    // not follow the person: the app cannot know where in the band they are.
     const small = state.motion.size === 'small';
-    const patrol = svg('g', { class: 'figure-patrol' });
-    patrol.style.setProperty('--dx', `${(g.bx - g.ax) * 0.3}px`);
-    patrol.style.setProperty('--dy', `${(g.by - g.ay) * 0.3}px`);
-    patrol.style.animationDelay = `-${Date.now() % 16000}ms`; // keeps its place when the map redraws
+    const patrol = svg('g', { class: 'figure-still' });
     const fig = svg('g', { transform: `translate(${g.cx} ${g.cy}) scale(${k})` });
     if (small) {
       fig.append(svg('path', { class: 'figure', d: PET, transform: 'translate(-30 -20)' }));
@@ -231,7 +228,7 @@ function renderMap() {
       body.append(svg('circle', { class: 'figure', cx: 20, cy: 9, r: 8 }), svg('path', { class: 'figure', d: PERSON }));
       fig.append(body);
     }
-    fig.append(svg('text', { class: 'figure-label', x: 0, y: small ? -32 : -64 }, small ? 'SMALL MOVEMENT IN THIS BAND' : 'MOVEMENT IN THIS BAND'));
+    fig.append(svg('text', { class: 'figure-label', x: 0, y: small ? -32 : -64 }, small ? 'SMALL MOVEMENT SOMEWHERE IN THIS BAND' : 'MOVEMENT SOMEWHERE IN THIS BAND'));
     patrol.append(fig);
     map.append(patrol);
   }
@@ -254,7 +251,7 @@ function renderCaption(plan, covered) {
   const names = plan.rooms.filter((r) => covered.has(r.id)).map((r) => r.name);
   const zone = names.length ? `Sensing zone: ${names.join(', ')}.` : 'Sensing zone: the band between PC and router.';
   const example = plan.example ? ' This is an example layout: press "Edit layout" to draw your own home.' : '';
-  caption.textContent = `The rings show your WiFi reaching the whole home. ${zone} That glowing band is where this version can notice movement; movement in other rooms is mostly missed. The app cannot tell which room in the band: the figure walks along the whole band to show that. Its size is a guess from how strong the disturbance was.${example}`;
+  caption.textContent = `The rings show your WiFi reaching the whole home. ${zone} That glowing band is where this version can notice movement; movement in other rooms is mostly missed. The figure is only a marker: it does not follow the person, and the app cannot tell which room in the band. It appears a second or two after movement starts and stays about ten seconds after it stops. Its size is a guess from how strong the disturbance was.${example}`;
 }
 
 /* ---------- layout editor ---------- */
@@ -505,6 +502,57 @@ function renderDiag() {
   }
 }
 
+/* ---------- walk test ---------- */
+
+function renderWalkTest() {
+  const box = $('walkBox');
+  const w = state.walkTest;
+  const running = w && w.phase !== 'done';
+  $('walkBtn').textContent = running ? 'Stop walk test' : 'Walk test (calibrate)';
+  $('walkBtn').disabled = state.mode === 'armed' || state.mode === 'arming';
+  box.hidden = !w;
+  if (!w) return;
+  const left = Math.max(0, Math.ceil((w.phaseEndsAt - appNow()) / 1000));
+  let title = '';
+  let text = '';
+  let wait = true;
+  if (w.phase === 'still') {
+    title = `Step 1 of 2: sit completely still · ${left}s`;
+    text = 'Nobody should move near the PC or the router. Pets too, if you can.';
+  } else if (w.phase === 'walk') {
+    title = `Step 2 of 2: walk now · ${left}s`;
+    text = 'Walk back and forth between the PC and the router, at a normal pace, until this reaches 0.';
+  } else {
+    wait = false;
+    const r = w.result;
+    const nums = r.verdict === 'failed' ? '' : ` Sitting still scored ${r.still}, walking scored ${r.walking}.`;
+    const speed = r.useSpeed ? 'Link speed is used.' : 'Link speed is not used (it did not help).';
+    if (r.verdict === 'good') {
+      title = 'Result: good';
+      text = `Walking stands out clearly from sitting still.${nums} Sensitivity set to ${r.sensitivity} (alarm at ${r.alarmAt}). ${speed}`;
+    } else if (r.verdict === 'weak') {
+      title = 'Result: weak';
+      text = `Walking shows only a little above sitting still.${nums} Sensitivity set to ${r.sensitivity} (alarm at ${r.alarmAt}). ${speed} Expect some false alarms and some misses.`;
+      wait = true;
+    } else if (r.verdict === 'disturbed') {
+      title = 'Result: try again';
+      text = `Something disturbed the readings during the sitting-still step (it scored ${r.still}; a still house scores about 1). Run the test again when nobody is moving.`;
+      wait = true;
+    } else if (r.verdict === 'none') {
+      title = 'Result: this PC cannot tell the difference';
+      text = `Walking looked the same as sitting still.${nums} With this WiFi card the app cannot sense movement here. Settings were left as they were.`;
+      wait = true;
+    } else {
+      title = 'Result: not enough readings';
+      text = 'The WiFi signal could not be read for long enough. Check the warning above the map and try again.';
+      wait = true;
+    }
+  }
+  box.className = `walk${wait ? ' wait' : ''}`;
+  $('walkTitle').textContent = title;
+  $('walkText').textContent = text;
+}
+
 /* ---------- movement log ---------- */
 
 function renderEvents() {
@@ -642,6 +690,10 @@ $('powerBtn').addEventListener('click', () =>
 );
 $('testBtn').addEventListener('click', () => act(() => post('/api/mode', { mode: state.mode === 'test' ? 'off' : 'test' })));
 $('recalBtn').addEventListener('click', () => act(() => post('/api/recalibrate')));
+$('walkBtn').addEventListener('click', () => {
+  const running = state.walkTest && state.walkTest.phase !== 'done';
+  act(() => post('/api/walk-test', { action: running ? 'cancel' : 'start' }));
+});
 $('clearBtn').addEventListener('click', () => {
   if (confirm('Clear the whole movement log?')) act(() => post('/api/events/clear'));
 });
@@ -651,6 +703,7 @@ $('clearBtn').addEventListener('click', () => {
 function render() {
   if (!state) return;
   renderStatus();
+  renderWalkTest();
   renderEditBar();
   if (!drag) renderMap();
   renderChart();
@@ -689,6 +742,7 @@ function connect() {
 
 setInterval(() => {
   if (state && state.mode === 'arming') renderStatus();
+  if (state && state.walkTest && state.walkTest.phase !== 'done') renderWalkTest();
 }, 500);
 window.addEventListener('resize', () => {
   renderChart();

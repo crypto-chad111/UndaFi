@@ -27,8 +27,8 @@ strength, read a few times a second.
 - see movement outside that band. Rooms the band does not cross are **not
   covered**;
 - find walls. You draw your floor plan once, by hand, in the app;
-- tell which room in the band the movement was in. The figure walks up and
-  down the whole band to show "somewhere in here". It does not mark a spot;
+- tell which room in the band the movement was in. The figure is only a
+  marker for "somewhere in this band". It does not follow the person;
 - be widened by a setting. Your WiFi reaches the whole home (the rings on
   the map show that), but the app can only listen at one place: the PC. What
   the PC hears most is the path between it and the router. Movement in other
@@ -94,13 +94,18 @@ the first time you start it.
    - Rooms snap to quarter squares and can be as small as half a square.
    - A rough sketch is enough. What matters is that PC and ROUTER sit in the
      right rooms.
-2. **Walk test.** Press "Test at home (no alerts)". Wait for the learning to
-   finish, sit still for a minute, then walk between the PC and the router.
-   Watch the signal chart. If nothing shows, raise the sensitivity in
-   "Alerts and settings". If it triggers while nobody moves, lower it, or
-   raise "Movement must last at least".
-   - The figure stays a few seconds after the movement stops. That is
-     normal: the app judges the last 8 seconds of signal.
+2. **Walk test.** Press "Walk test (calibrate)" and follow the two steps:
+   sit completely still for a minute, then walk between the PC and the
+   router for 40 seconds. The app measures both and tells you plainly:
+   - **good**: walking stands out; sensitivity is set for you;
+   - **weak**: it can tell a little; expect false alarms and misses;
+   - **cannot tell the difference**: this PC's WiFi card cannot sense
+     movement here. No setting fixes that.
+   It also decides by itself whether the link speed helps or only adds noise.
+   - The figure appears a second or two after movement starts and stays
+     about ten seconds after it stops. That is normal: the app judges the
+     last 6 seconds of signal.
+   - The figure is only a marker. It does not follow the person.
    - The further apart the PC and router are (a room or two), the more of
      the home the band covers.
 3. **Set up alerts** in "Alerts and settings":
@@ -147,7 +152,7 @@ ON, and carries on after a restart (with the countdown again).
 
 ## What has and has not been tested
 
-Tested (automated, `npm test`, 49 checks):
+Tested (automated, `npm test`, 54 checks):
 
 - the movement detector, on simulated signals;
 - reading Windows' WiFi report, from sample text (English and German);

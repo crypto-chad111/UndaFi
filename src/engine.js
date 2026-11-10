@@ -10,12 +10,41 @@
 //   armed   watching, and movement sends alerts
 
 const { EventEmitter } = require('node:events');
-const { Detector } = require('./detector');
+const { Detector, thresholdFor, sensitivityFor, percentile } = require('./detector');
 const { roomsOnLink } = require('./plan');
 const { publicSettings } = require('./store');
 
 const HISTORY_MS = 120000;
 const SENSOR_LOST_MS = 60000;
+const CALIB_STILL_MS = 60000;
+const CALIB_WALK_MS = 40000;
+
+// Walk test maths: compare how disturbed the readings were while sitting
+// still with while walking, and pick settings from that. Pure function.
+function judgeWalkTest(still, walk) {
+  const top = (list, key, p) => percentile(list.map((x) => x[key]), p);
+  const options = [false, true].map((useSpeed) => {
+    const key = useSpeed ? 'both' : 'signal';
+    const quiet = Math.max(1, top(still, key, 0.98));
+    const moving = top(walk, key, 0.85);
+    return { useSpeed, quiet, moving, ratio: moving / quiet };
+  });
+  // Link speed is only kept if it genuinely helps tell the two apart.
+  const best = options[1].ratio > options[0].ratio * 1.1 ? options[1] : options[0];
+  const round = (n) => Math.round(n * 10) / 10;
+  const result = { still: round(best.quiet), walking: round(best.moving), useSpeed: best.useSpeed, verdict: 'none', sensitivity: null };
+  // A high score while "sitting still" means something moved during step 1.
+  if (best.ratio < 1.25 && best.quiet >= 3) result.verdict = 'disturbed';
+  if (best.ratio >= 1.25 && best.moving >= 2) {
+    result.verdict = best.ratio >= 1.6 ? 'good' : 'weak';
+    // Alarm level: clear of the still-house level, but below walking.
+    let level = Math.max(best.quiet * 1.3, Math.sqrt(best.quiet * best.moving));
+    if (level > best.moving * 0.92) level = best.moving * 0.92;
+    result.sensitivity = sensitivityFor(level);
+    result.alarmAt = thresholdFor(result.sensitivity);
+  }
+  return result;
+}
 
 class Engine extends EventEmitter {
   constructor({ store, createSensor, createProbe, sendAlert, demo = false, now = Date.now }) {
@@ -49,6 +78,7 @@ class Engine extends EventEmitter {
     this.lastAlertAt = 0;
     this.lastResult = { ready: false, level: 0, threshold: this.detector.threshold, motion: null };
     this.lastNotify = null;
+    this.calib = null; // the walk test, while it runs and its last result
     this.timer = null;
   }
 
@@ -75,6 +105,7 @@ class Engine extends EventEmitter {
     if (!['off', 'test', 'armed'].includes(target)) throw new Error('Unknown mode.');
     const wasOff = this.mode === 'off';
     this.store.setMode(target);
+    if (target !== 'test' && this.calib && this.calib.phase !== 'done') this.calib = null;
     if (target === 'off') {
       this.sensor.stop();
       if (this.probe) this.probe.stop();
@@ -113,6 +144,7 @@ class Engine extends EventEmitter {
 
   tick() {
     const now = this.now();
+    this.stepWalkTest(now);
     if (this.mode === 'arming' && now >= this.armAt) {
       this.mode = 'armed';
       this.emit('state');
@@ -163,6 +195,10 @@ class Engine extends EventEmitter {
       if (size !== this.current.size) changed = true;
       this.current.peak = Math.round(result.motion.peak * 100) / 100;
       this.current.size = size;
+    }
+    if (this.calib && this.calib.phase !== 'done' && result.ready) {
+      const lv = result.levels;
+      this.calib[this.calib.phase].push({ signal: lv.signal, both: Math.max(lv.signal, lv.speed) });
     }
     this.emit('sample', { t, dbm, level: result.level, rx, tx });
     if (changed) this.emit('state');
@@ -231,6 +267,49 @@ class Engine extends EventEmitter {
     return result;
   }
 
+  // The walk test: one minute sitting still, then 40 seconds walking. It
+  // measures what this PC's WiFi card actually shows and sets sensitivity.
+  startWalkTest() {
+    if (this.mode === 'armed' || this.mode === 'arming') throw new Error('Switch monitoring off first, then run the walk test.');
+    if (this.mode === 'off') this.setMode('test');
+    this.closeCurrent(this.now());
+    this.detector.configure({ useSpeed: true }); // measure both, then decide
+    this.detector.reset();
+    this.lastResult = { ready: false, level: 0, threshold: this.detector.threshold, motion: null };
+    const now = this.now();
+    this.calib = { phase: 'still', phaseEndsAt: now + CALIB_STILL_MS, still: [], walk: [], result: null };
+    this.emit('state');
+  }
+
+  cancelWalkTest() {
+    if (this.calib && this.calib.phase !== 'done') {
+      this.calib = null;
+      this.detector.configure(this.detectorOptions());
+      this.emit('state');
+    }
+  }
+
+  stepWalkTest(now) {
+    const c = this.calib;
+    if (!c || c.phase === 'done' || now < c.phaseEndsAt) return;
+    if (c.phase === 'still') {
+      c.phase = 'walk';
+      c.phaseEndsAt = now + CALIB_WALK_MS;
+    } else {
+      c.phase = 'done';
+      if (c.still.length < 20 || c.walk.length < 20) {
+        c.result = { verdict: 'failed' };
+      } else {
+        c.result = judgeWalkTest(c.still, c.walk);
+        if (c.result.sensitivity) this.store.updateSettings({ sensitivity: c.result.sensitivity, useSpeed: c.result.useSpeed });
+      }
+      c.still = [];
+      c.walk = [];
+      this.detector.configure(this.detectorOptions());
+    }
+    this.emit('state');
+  }
+
   recalibrate() {
     this.closeCurrent(this.now());
     this.detector.reset();
@@ -279,10 +358,11 @@ class Engine extends EventEmitter {
       plan: config.plan,
       events: this.store.events.slice(-100).reverse(),
       lastNotify: this.lastNotify,
+      walkTest: this.calib ? { phase: this.calib.phase, phaseEndsAt: this.calib.phaseEndsAt, result: this.calib.result } : null,
     };
     if (withHistory) snap.history = this.history;
     return snap;
   }
 }
 
-module.exports = { Engine };
+module.exports = { Engine, judgeWalkTest };

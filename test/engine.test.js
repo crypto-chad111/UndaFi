@@ -196,3 +196,66 @@ test('the log records whether signal or link speed noticed the movement', async 
   play(10, true);
   assert.strictEqual(store.events[0].trigger, 'signal');
 });
+
+const { judgeWalkTest } = require('../src/engine');
+
+test('walk test: clear difference -> good, and the settings are applied', () => {
+  const { engine, store, play } = setup({ sensitivity: 3 });
+  engine.startWalkTest();
+  assert.strictEqual(engine.mode, 'test', 'starts watching by itself, without alerts');
+  assert.strictEqual(engine.snapshot().walkTest.phase, 'still');
+  play(61, false);
+  assert.strictEqual(engine.snapshot().walkTest.phase, 'walk');
+  play(41, true);
+  const w = engine.snapshot().walkTest;
+  assert.strictEqual(w.phase, 'done');
+  assert.strictEqual(w.result.verdict, 'good');
+  assert.ok(w.result.walking > w.result.still * 1.6);
+  assert.strictEqual(store.config.sensitivity, w.result.sensitivity);
+  assert.ok(w.result.alarmAt > w.result.still && w.result.alarmAt < w.result.walking, 'alarm level sits between sitting and walking');
+});
+
+test('walk test: no difference -> says so and changes nothing', () => {
+  const { engine, store, play } = setup({ sensitivity: 4 });
+  engine.startWalkTest();
+  play(61, false);
+  play(41, false);
+  const w = engine.snapshot().walkTest;
+  assert.strictEqual(w.result.verdict, 'none');
+  assert.strictEqual(store.config.sensitivity, 4);
+});
+
+test('walk test: refuses while monitoring is on, and can be stopped', () => {
+  const { engine } = setup({ armDelaySec: 0 });
+  engine.setMode('armed');
+  assert.throws(() => engine.startWalkTest(), /Switch monitoring off/);
+  engine.setMode('off');
+  engine.startWalkTest();
+  engine.cancelWalkTest();
+  assert.strictEqual(engine.snapshot().walkTest, null);
+});
+
+test('walk test maths: link speed is dropped when it only adds noise', () => {
+  const still = Array.from({ length: 100 }, (_, i) => ({ signal: 1, both: i % 3 ? 1 : 3 }));
+  const walk = Array.from({ length: 100 }, () => ({ signal: 5, both: 5 }));
+  const r = judgeWalkTest(still, walk);
+  assert.strictEqual(r.useSpeed, false);
+  assert.strictEqual(r.verdict, 'good');
+  // ...and kept when it is the only thing that reacts (a frozen signal reading)
+  const still2 = Array.from({ length: 100 }, () => ({ signal: 0, both: 1.2 }));
+  const walk2 = Array.from({ length: 100 }, () => ({ signal: 0, both: 4 }));
+  const r2 = judgeWalkTest(still2, walk2);
+  assert.strictEqual(r2.useSpeed, true);
+  assert.strictEqual(r2.verdict, 'good');
+  // a faint difference is called weak, not good
+  const walk3 = Array.from({ length: 100 }, () => ({ signal: 0, both: 2.1 }));
+  assert.strictEqual(judgeWalkTest(still2.map(() => ({ signal: 0, both: 1.5 })), walk3).verdict, 'weak');
+});
+
+test('walk test maths: movement during the sitting-still step asks for a retry', () => {
+  const still = Array.from({ length: 100 }, (_, i) => ({ signal: i > 60 ? 9 : 1, both: i > 60 ? 9 : 1 }));
+  const walk = Array.from({ length: 100 }, () => ({ signal: 4, both: 4 }));
+  const r = judgeWalkTest(still, walk);
+  assert.strictEqual(r.verdict, 'disturbed');
+  assert.strictEqual(r.sensitivity, null);
+});

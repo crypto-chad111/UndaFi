@@ -100,6 +100,10 @@ function createHandler({ engine, store, getAllowedIps, getUrls }) {
       engine.settingsChanged();
     },
     '/api/test-alert': async () => ({ result: await engine.testAlert() }),
+    '/api/walk-test': async (body) => {
+      if (body.action === 'cancel') engine.cancelWalkTest();
+      else engine.startWalkTest();
+    },
     '/api/recalibrate': async () => {
       engine.recalibrate();
     },

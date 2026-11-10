@@ -13,8 +13,8 @@
 // first kind, "shift" (the level moved away from where it normally sits)
 // catches the second.
 
-const WINDOW_MS = 8000; // "right now" = the last 8 seconds
-const MEAN_MS = 60000; // normal level = median of the last minute
+const WINDOW_MS = 6000; // "right now" = the last 6 seconds
+const MEAN_MS = 30000; // normal level = median of the last half minute
 const HISTORY_MS = 300000; // normal wobble = learned from the last 5 minutes
 const WARMUP_MS = 15000; // listen this long before judging anything
 const GAP_RESET_MS = 10000; // a silence this long means the sensor dropped out
@@ -29,7 +29,7 @@ function clamp(n, lo, hi) {
 // that or it would alarm on nothing.
 function thresholdFor(sensitivity) {
   const s = clamp(Number(sensitivity) || 7, 1, 10);
-  return Math.round((5.1 - (s - 1) * 0.31) * 100) / 100;
+  return Math.round((5.1 - (s - 1) * 0.29) * 100) / 100;
 }
 
 // Movement counts as over once the level drops back near the still-house level.
@@ -230,4 +230,10 @@ class Detector {
   }
 }
 
-module.exports = { Detector, thresholdFor, WARMUP_MS };
+// The sensitivity setting whose alarm level is closest to (and not above) a
+// wanted level. Used by the walk test.
+function sensitivityFor(level) {
+  return clamp(Math.ceil(1 + (5.1 - level) / 0.29 - 1e-9), 1, 10);
+}
+
+module.exports = { Detector, thresholdFor, sensitivityFor, percentile, WARMUP_MS };
