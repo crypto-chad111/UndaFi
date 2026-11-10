@@ -1,7 +1,7 @@
 'use strict';
 
 // The floor plan: rooms drawn by the owner, plus where the router and the PC
-// are. WiFi Sentinel does not discover walls; the owner draws them once.
+// are. UndaFi does not discover walls; the owner draws them once.
 
 const MAX_ROOMS = 40;
 

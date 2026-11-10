@@ -26,7 +26,7 @@ function buildMessage({ from, to, subject, body }) {
   const domain = address(from).split('@')[1] || 'localhost';
   const encoded = Buffer.from(String(body), 'utf8').toString('base64').replace(/(.{76})/g, '$1\r\n');
   return [
-    `From: WiFi Sentinel <${address(from)}>`,
+    `From: UndaFi <${address(from)}>`,
     `To: <${address(to)}>`,
     `Subject: ${header(subject)}`,
     `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`,

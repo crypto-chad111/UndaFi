@@ -1,6 +1,6 @@
 'use strict';
 
-// WiFi Sentinel: start with "node server.js" (or double-click start.bat).
+// UndaFi: start with "node server.js" (or double-click start.bat).
 //
 //   --demo        use a made-up signal (for trying the dashboard)
 //   --port 4780   use another port
@@ -101,7 +101,7 @@ function syncTailscale() {
   }
 }
 
-console.log(`WiFi Sentinel${demo ? ' (DEMO: made-up signal)' : ''}`);
+console.log(`UndaFi${demo ? ' (DEMO: made-up signal)' : ''}`);
 listen('127.0.0.1', true);
 syncTailscale();
 setInterval(syncTailscale, 30000).unref();

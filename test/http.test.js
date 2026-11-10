@@ -10,7 +10,7 @@ const { Engine } = require('../src/engine');
 const { createHandler, hostAllowed } = require('../src/http');
 
 async function start() {
-  const store = createStore(fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-http-')));
+  const store = createStore(fs.mkdtempSync(path.join(os.tmpdir(), 'undafi-http-')));
   const engine = new Engine({ store, sendAlert: async () => ({}), createSensor: () => ({ start() {}, stop() {} }) });
   const server = http.createServer(createHandler({ engine, store, getAllowedIps: () => ['100.101.102.103'], getUrls: () => [] }));
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -33,7 +33,7 @@ test('serves the dashboard and the state', async () => {
   const app = await start();
   const page = await app.call('GET', '/');
   assert.strictEqual(page.status, 200);
-  assert.match(page.text, /WiFi Sentinel/);
+  assert.match(page.text, /UndaFi/);
   const state = (await app.call('GET', '/api/state')).json();
   assert.strictEqual(state.mode, 'off');
   assert.ok(Array.isArray(state.plan.rooms));

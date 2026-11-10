@@ -1,6 +1,6 @@
 'use strict';
 
-/* WiFi Sentinel dashboard. Talks to the app on this PC; nothing else. */
+/* UndaFi dashboard. Talks to the app on this PC; nothing else. */
 
 const $ = (id) => document.getElementById(id);
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -651,7 +651,7 @@ $('sensitivity').addEventListener('input', (evt) => {
 });
 $('genTopicBtn').addEventListener('click', () => {
   const bytes = crypto.getRandomValues(new Uint8Array(12));
-  $('ntfyTopic').value = `sentinel-${[...bytes].map((b) => b.toString(36).padStart(2, '0')).join('').slice(0, 20)}`;
+  $('ntfyTopic').value = `undafi-${[...bytes].map((b) => b.toString(36).padStart(2, '0')).join('').slice(0, 20)}`;
 });
 $('saveSettingsBtn').addEventListener('click', async () => {
   try {

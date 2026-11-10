@@ -153,7 +153,7 @@ class Engine extends EventEmitter {
     if (this.mode === 'armed' && this.sensorBadSince && !this.sensorLostAlerted && now - this.sensorBadSince >= SENSOR_LOST_MS) {
       this.sensorLostAlerted = true;
       this.alert({
-        title: 'WiFi Sentinel cannot see the WiFi signal',
+        title: 'UndaFi cannot see the WiFi signal',
         body: `Monitoring is switched on but the WiFi signal has been unreadable for a minute. ${this.sensorState.detail || ''}`.trim(),
         urgent: true,
       });
@@ -259,7 +259,7 @@ class Engine extends EventEmitter {
 
   async testAlert() {
     const result = await this.alert({
-      title: 'WiFi Sentinel test alert',
+      title: 'UndaFi test alert',
       body: 'This is a test. If you can read this, alerts are working.',
       urgent: false,
     });

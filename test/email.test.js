@@ -69,7 +69,7 @@ function listen(server) {
 
 let cert = null;
 try {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-cert-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'undafi-cert-'));
   execFileSync(
     'openssl',
     ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(dir, 'k.pem'), '-out', path.join(dir, 'c.pem'), '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost'],

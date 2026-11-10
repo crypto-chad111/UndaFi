@@ -40,7 +40,7 @@ function describeFailure(err, stdout, stderr) {
     return {
       status: 'permission',
       detail:
-        'Windows is blocking WiFi details. Open Settings > Privacy & security > Location, turn on "Location services" and "Let desktop apps access your location", then restart WiFi Sentinel.',
+        'Windows is blocking WiFi details. Open Settings > Privacy & security > Location, turn on "Location services" and "Let desktop apps access your location", then restart UndaFi.',
     };
   }
   if (err && err.code === 'ENOENT') {
@@ -64,7 +64,7 @@ function createWindowsSensor({ intervalMs = 400, onSample, onStatus, run = execF
         if (!parsed.connected) {
           onStatus({
             status: 'no-wifi',
-            detail: 'This PC is not connected to WiFi. WiFi Sentinel needs the PC on WiFi (not only a network cable) to sense movement.',
+            detail: 'This PC is not connected to WiFi. UndaFi needs the PC on WiFi (not only a network cable) to sense movement.',
           });
         } else {
           onStatus({

@@ -1,7 +1,8 @@
 {
-  "name": "wifi-sentinel",
-  "version": "0.4.0",
+  "name": "undafi",
+  "version": "0.5.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Home movement monitor that listens to the WiFi signal of this PC.",
   "main": "server.js",
   "scripts": {

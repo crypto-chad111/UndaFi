@@ -11,7 +11,7 @@ function createSensor({ demo, platform = process.platform, onSample, onStatus })
   if (platform === 'linux') return createLinuxSensor({ onSample, onStatus });
   return {
     start() {
-      onStatus({ status: 'unsupported', detail: 'WiFi Sentinel can read the WiFi signal on Windows and Linux only for now.' });
+      onStatus({ status: 'unsupported', detail: 'UndaFi can read the WiFi signal on Windows and Linux only for now.' });
     },
     stop() {},
   };

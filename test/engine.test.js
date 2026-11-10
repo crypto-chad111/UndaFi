@@ -8,7 +8,7 @@ const { createStore } = require('../src/store');
 const { Engine } = require('../src/engine');
 
 function setup(settings = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'undafi-test-'));
   const store = createStore(dir);
   store.updateSettings({ ntfy: { enabled: true, topic: 'abc' }, ...settings });
   const clock = { t: 1000000 };
@@ -132,8 +132,8 @@ test('the on/off choice survives a restart', () => {
 });
 
 test('a layout drawn in the demo is carried over to the real app, once', () => {
-  const demoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-demo-'));
-  const realDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-real-'));
+  const demoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'undafi-demo-'));
+  const realDir = fs.mkdtempSync(path.join(os.tmpdir(), 'undafi-real-'));
   const demo = createStore(demoDir);
   demo.setPlan({ width: 30, height: 20, rooms: [{ id: 'k', name: 'Kitchen', x: 2, y: 2, w: 4.25, h: 0.5 }], router: { x: 1, y: 1 }, pc: { x: 9, y: 9 } });
   const real = createStore(realDir, { importPlanFrom: demoDir });
@@ -157,7 +157,7 @@ test('the new timing settings are saved and kept in range', () => {
 
 test('the keep-busy trickle runs only while monitoring, follows its setting, and never in the demo', () => {
   const make = (demo, settings) => {
-    const store = createStore(fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-probe-')));
+    const store = createStore(fs.mkdtempSync(path.join(os.tmpdir(), 'undafi-probe-')));
     store.updateSettings({ armDelaySec: 0, ...settings });
     const calls = [];
     const engine = new Engine({
