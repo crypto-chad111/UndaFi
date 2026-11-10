@@ -311,8 +311,15 @@ Tested automatically (`npm test`):
 - the keep-busy trickle, the web protections, and the dashboard in a browser
   with the demo signal.
 
-Tested by hand so far: one Windows PC, where the signal reading turned out
-to be sticky and the link speed carried the sensing.
+Tested by hand so far: one Windows PC, in one home.
+
+- Its WiFi card is a sticky one: the signal reading changed once in two
+  minutes.
+- The link speed carried the sensing. In the walk test, sitting still
+  scored 1.9 and walking between the PC and the router scored 13.8, a
+  "good" result, and movement was logged as "seen in link speed".
+- That was a deliberate walk back and forth along the band. A single
+  crossing, or movement elsewhere in the home, has not been measured.
 
 **Not tested:** other WiFi cards, real Gmail, the real ntfy.sh service,
 Linux on real hardware, and long unattended runs.
