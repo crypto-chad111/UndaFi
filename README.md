@@ -29,7 +29,8 @@ layout. It is not a real home.*
 ## What it does
 
 - Big ON / OFF button with a countdown, so you can leave before alerts start
-- A floor plan you draw yourself, with the sensing zone glowing on it
+- A floor plan you draw yourself, with the sensing zone glowing on it, in
+  2D or as a simple 3D wireframe
 - A guided walk test that measures what your PC can really sense
 - Alerts by phone push ([ntfy](https://ntfy.sh)) and by email
 - A movement log

@@ -11,6 +11,12 @@ let history = []; // recent signal samples for the chart
 let clockOffset = 0; // app clock minus this device's clock
 let edit = null; // { plan, selected } while the layout is being edited
 let drag = null;
+let view3d = false; // remembered per device
+try {
+  view3d = localStorage.getItem('undafi-3d') === '1';
+} catch {
+  /* storage blocked: start in 2D */
+}
 
 function svg(tag, attrs = {}, text) {
   const node = document.createElementNS(SVG_NS, tag);
@@ -137,7 +143,32 @@ function renderMap() {
   // Icons, labels and the figure keep their size on screen when the grid grows.
   const k = plan.width / 20;
   const narrow = window.matchMedia('(max-width: 920px)').matches;
-  map.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  // 3D view: the same floor plan, turned and tilted, with the room outlines
+  // raised into wireframe walls. Only the drawing changes. Editing is 2D.
+  const three = view3d && !edit;
+  const wallH = 0.9 * U;
+  let m = [1, 0, 0, 1, 0, 0];
+  let boxW = W;
+  let boxH = H;
+  if (three) {
+    const turn = Math.PI / 6;
+    const tilt = 0.55;
+    const a = Math.cos(turn);
+    const b = tilt * Math.sin(turn);
+    const c = -Math.sin(turn);
+    const d = tilt * Math.cos(turn);
+    const xs = [0, a * W, c * H, a * W + c * H];
+    const ys = [0, b * W, d * H, b * W + d * H];
+    const pad = 30 * k;
+    const head = wallH + 50 * k; // room above the far walls for labels
+    m = [a, b, c, d, pad - Math.min(...xs), pad + head - Math.min(...ys)];
+    boxW = Math.max(...xs) - Math.min(...xs) + 2 * pad;
+    boxH = Math.max(...ys) - Math.min(...ys) + 2 * pad + head;
+  }
+  const at = (x, y) => ({ x: m[0] * x + m[2] * y + m[4], y: m[1] * x + m[3] * y + m[5] });
+  const floor = svg('g', three ? { transform: `matrix(${m.join(' ')})` } : {});
+  const walls = svg('g');
+  map.setAttribute('viewBox', `0 0 ${boxW} ${boxH}`);
   map.replaceChildren();
 
   const defs = svg('defs');
@@ -151,7 +182,8 @@ function renderMap() {
   const dots = svg('pattern', { id: 'dots', width: U, height: U, patternUnits: 'userSpaceOnUse' });
   dots.append(svg('circle', { class: 'grid-dot', cx: 0.5, cy: 0.5, r: 1.3 * k }));
   defs.append(glow, grad, dots);
-  map.append(defs, svg('rect', { x: 0, y: 0, width: W, height: H, fill: 'url(#dots)' }));
+  map.append(defs, floor, walls);
+  floor.append(svg('rect', { x: 0, y: 0, width: W, height: H, fill: 'url(#dots)' }));
 
   const g = linkGeometry(plan);
   const watching = !edit && monitoring() && !sensorProblem();
@@ -159,7 +191,7 @@ function renderMap() {
   const covered = new Set(edit ? [] : state.linkRooms);
 
   // The sensing zone: the band between the PC and the router.
-  map.append(
+  floor.append(
     svg('ellipse', {
       class: `band${motion ? ' hot' : watching ? ' watching' : ''}`,
       cx: g.cx,
@@ -182,10 +214,31 @@ function renderMap() {
     // Shrink the name so it stays inside a small room.
     const fit = (room.w * U - 14 * k) / (0.68 * Math.max(1, room.name.length));
     const font = Math.max(5 * k, Math.min(baseFont, fit, room.h * U * 0.6));
-    map.append(rect, svg('text', { class: `room-label${hot ? ' hot' : ''}`, x: room.x * U + 7 * k, y: room.y * U + font * 1.3 + 2 * k, 'font-size': font }, room.name));
+    floor.append(rect);
+    if (!three) {
+      floor.append(svg('text', { class: `room-label${hot ? ' hot' : ''}`, x: room.x * U + 7 * k, y: room.y * U + font * 1.3 + 2 * k, 'font-size': font }, room.name));
+    } else {
+      // Walls: a post at each corner and the outline again at ceiling height.
+      const corners = [
+        at(room.x * U, room.y * U),
+        at((room.x + room.w) * U, room.y * U),
+        at((room.x + room.w) * U, (room.y + room.h) * U),
+        at(room.x * U, (room.y + room.h) * U),
+      ];
+      const wallClass = `wall${hot ? ' hot' : covered.has(room.id) ? ' covered' : ''}`;
+      for (const p of corners) walls.append(svg('line', { class: wallClass, x1: p.x, y1: p.y, x2: p.x, y2: p.y - wallH }));
+      walls.append(svg('polygon', { class: `${wallClass} top`, points: corners.map((p) => `${p.x},${p.y - wallH}`).join(' ') }));
+      const mid = at((room.x + room.w / 2) * U, (room.y + room.h / 2) * U);
+      walls.append(svg('text', { class: `room-label${hot ? ' hot' : ''}`, x: mid.x, y: mid.y, 'text-anchor': 'middle', 'font-size': Math.min(font, baseFont * 0.85) }, room.name));
+    }
   }
 
-  map.append(svg('line', { class: 'link', x1: g.ax, y1: g.ay, x2: g.bx, y2: g.by }));
+  floor.append(svg('line', { class: 'link', x1: g.ax, y1: g.ay, x2: g.bx, y2: g.by }));
+  // Upright things stand on the floor at these points.
+  const routerAt = at(g.bx, g.by);
+  const pcAt = at(g.ax, g.ay);
+  const midAt = at(g.cx, g.cy);
+  const lift = three ? 1 : 0;
 
   if (watching) {
     // The WiFi pulse spreads from the router across the whole home, because
@@ -197,21 +250,21 @@ function renderMap() {
       Math.hypot(g.bx, H - g.by),
       Math.hypot(W - g.bx, H - g.by),
     );
-    for (const r of ['r1', 'r2', 'r3', 'r4']) map.append(svg('circle', { class: `ring ${r}`, cx: g.bx, cy: g.by, r: reach }));
+    for (const r of ['r1', 'r2', 'r3', 'r4']) floor.append(svg('circle', { class: `ring ${r}`, cx: g.bx, cy: g.by, r: reach }));
   }
 
-  const router = svg('g', { class: edit ? 'draggable' : '', 'data-device': 'router', transform: `translate(${g.bx} ${g.by}) scale(${k})` });
+  const router = svg('g', { class: edit ? 'draggable' : '', 'data-device': 'router', transform: `translate(${routerAt.x} ${routerAt.y - lift * 14 * k}) scale(${k})` });
   router.append(
     svg('circle', { class: 'device', cx: 0, cy: 0, r: 13 }),
     svg('path', { class: 'device-mark', d: 'M-7 -2 a10 10 0 0 1 14 0 M-3.5 2 a5 5 0 0 1 7 0' }),
     svg('circle', { cx: 0, cy: 6, r: 1.6, fill: '#3dff8f' }),
-    svg('text', { class: 'device-label', x: 0, y: g.by < 46 * k ? 30 : -20, 'text-anchor': 'middle' }, 'ROUTER'),
+    svg('text', { class: 'device-label', x: 0, y: !three && g.by < 46 * k ? 30 : -20, 'text-anchor': 'middle' }, 'ROUTER'),
   );
-  const pc = svg('g', { class: edit ? 'draggable' : '', 'data-device': 'pc', transform: `translate(${g.ax} ${g.ay}) scale(${k})` });
+  const pc = svg('g', { class: edit ? 'draggable' : '', 'data-device': 'pc', transform: `translate(${pcAt.x} ${pcAt.y - lift * 15 * k}) scale(${k})` });
   pc.append(
     svg('rect', { class: 'device', x: -14, y: -11, width: 28, height: 19, rx: 2 }),
     svg('path', { class: 'device-mark', d: 'M-7 13 h14 M0 8 v5' }),
-    svg('text', { class: 'device-label', x: 0, y: g.ay < 46 * k ? 30 : -18, 'text-anchor': 'middle' }, 'PC'),
+    svg('text', { class: 'device-label', x: 0, y: !three && g.ay < 46 * k ? 30 : -18, 'text-anchor': 'middle' }, 'PC'),
   );
   map.append(router, pc);
 
@@ -220,7 +273,8 @@ function renderMap() {
     // not follow the person: the app cannot know where in the band they are.
     const small = state.motion.size === 'small';
     const patrol = svg('g', { class: 'figure-still' });
-    const fig = svg('g', { transform: `translate(${g.cx} ${g.cy}) scale(${k})` });
+    // In 3D the figure stands with its feet on the floor.
+    const fig = svg('g', { transform: `translate(${midAt.x} ${midAt.y - lift * (small ? 16 : 45) * k}) scale(${k})` });
     if (small) {
       fig.append(svg('path', { class: 'figure', d: PET, transform: 'translate(-30 -20)' }));
     } else {
@@ -271,6 +325,9 @@ const within = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 function renderEditBar() {
   $('editBar').hidden = !edit;
   $('editBtn').hidden = Boolean(edit);
+  $('view3dBtn').hidden = Boolean(edit);
+  $('view3dBtn').textContent = view3d ? '2D view' : '3D view';
+  $('view3dBtn').setAttribute('aria-pressed', String(view3d));
   if (!edit) return;
   const room = edit.plan.rooms.find((r) => r.id === edit.selected);
   const name = $('roomName');
@@ -352,6 +409,15 @@ for (const type of ['pointerup', 'pointercancel']) {
 }
 
 $('editBtn').addEventListener('click', startEdit);
+$('view3dBtn').addEventListener('click', () => {
+  view3d = !view3d;
+  try {
+    localStorage.setItem('undafi-3d', view3d ? '1' : '0');
+  } catch {
+    /* not remembered, still works */
+  }
+  render();
+});
 $('gridW').addEventListener('change', resizeGrid);
 $('gridH').addEventListener('change', resizeGrid);
 $('cancelEditBtn').addEventListener('click', () => {

@@ -91,6 +91,7 @@ main {
 
 /* ---- map ---- */
 
+.map-head .row .btn { margin-top: 0; white-space: nowrap; }
 .map-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 
 .status { font-size: 15px; font-weight: 700; letter-spacing: 0.1em; color: var(--muted); }
@@ -125,6 +126,10 @@ main {
 #map .room.selected { stroke: #eafff2; stroke-dasharray: 6 4; }
 #map .room-label { paint-order: stroke; stroke: #020503; stroke-width: 4px; stroke-linejoin: round; fill: var(--green-mid); letter-spacing: 0.08em; text-transform: uppercase; pointer-events: none; }
 #map .room-label.hot { fill: var(--green); }
+#map .wall { stroke: var(--green-dim); stroke-width: 1.2; vector-effect: non-scaling-stroke; fill: none; }
+#map .wall.covered { stroke: var(--green-mid); }
+#map .wall.hot { stroke: var(--green); }
+#map .wall.top { stroke-dasharray: 5 4; }
 #map .link { stroke: var(--green-dim); stroke-width: 1.2; stroke-dasharray: 3 7; vector-effect: non-scaling-stroke; fill: none; }
 #map .band { fill: url(#bandFill); stroke: var(--green-dim); stroke-width: 1; stroke-dasharray: 2 6; vector-effect: non-scaling-stroke; opacity: 0.45; }
 #map .band.watching { opacity: 0.8; }
