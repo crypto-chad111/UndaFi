@@ -106,7 +106,7 @@ Other things that matter:
 
 ## Install and start
 
-You need [Node.js](https://nodejs.org) version 18 or newer. Nothing else.
+You need [Node.js](https://nodejs.org) version 20 or newer. Nothing else.
 
 ### Windows
 
