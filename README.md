@@ -140,7 +140,10 @@ an "UndaFi" icon on your Desktop and in the Start menu.
 
 **In the browser on the PC:** in Chrome or Edge, open the dashboard, then
 use the menu and choose "Install UndaFi" (Edge: Apps > Install this site as
-an app). It then opens in its own window. UndaFi must already be running.
+an app). It then opens in its own window, and you can pin it to the taskbar.
+
+This browser app only opens the page. It cannot start UndaFi. If it shows
+"NOT CONNECTED", UndaFi is not running: start it with the Desktop icon.
 
 **On your phone:** open the dashboard's Tailscale address, then:
 
@@ -347,6 +350,10 @@ Tested by hand so far: one Windows PC, in one home.
   "good" result, and movement was logged as "seen in link speed".
 - That was a deliberate walk back and forth along the band. A single
   crossing, or movement elsewhere in the home, has not been measured.
+
+The Windows icons (start, "Stop UndaFi"), the browser app pinned to the
+taskbar, and the phone home-screen icon over Tailscale were each tried once,
+on that PC and one phone. The Linux launcher has not been tried.
 
 **Not tested:** other WiFi cards, real Gmail, the real ntfy.sh service,
 Linux on real hardware, and long unattended runs.
