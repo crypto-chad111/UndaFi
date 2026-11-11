@@ -114,6 +114,8 @@ main {
   font-size: 13px;
 }
 
+body.offline .map-wrap, body.offline .side .panel { opacity: 0.35; filter: grayscale(1); }
+body.offline .power-btn { pointer-events: none; }
 .map-wrap { position: relative; border: 1px solid var(--line); border-radius: 4px; background: #020503; overflow: hidden; }
 #map { display: block; width: 100%; height: auto; touch-action: none; user-select: none; }
 
