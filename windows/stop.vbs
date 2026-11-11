@@ -1,9 +1,14 @@
 ' Stops UndaFi. Whether it was ON or OFF is remembered for next time.
 Option Explicit
-Dim http
+Dim http, sh, port
+' The shortcut starts the app on the port in the PORT setting of Windows, or
+' 4780 when there is none. Use the same one here.
+Set sh = CreateObject("WScript.Shell")
+port = sh.ExpandEnvironmentStrings("%PORT%")
+If port = "%PORT%" Or Not IsNumeric(port) Then port = "4780"
 On Error Resume Next
 Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
-http.Open "POST", "http://localhost:4780/api/quit", False
+http.Open "POST", "http://localhost:" & port & "/api/quit", False
 http.setRequestHeader "Content-Type", "application/json"
 http.Send "{}"
 If Err.Number <> 0 Then
