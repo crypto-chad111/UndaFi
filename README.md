@@ -353,7 +353,7 @@ Tested by hand so far: one Windows PC, in one home.
 
 The Windows icons (start, "Stop UndaFi"), the browser app pinned to the
 taskbar, and the phone home-screen icon over Tailscale were each tried once,
-on that PC and one phone. The Linux launcher has not been tried.
+on that PC and one phone.
 
 **Not tested:** other WiFi cards, real Gmail, the real ntfy.sh service,
 Linux on real hardware, and long unattended runs.
