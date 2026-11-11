@@ -95,6 +95,10 @@ function renderStatus() {
       cls = 'status wait';
     }
   }
+  if (!connected) {
+    line = 'NOT CONNECTED';
+    cls = 'status wait';
+  }
   status.textContent = state.demo ? `DEMO · ${line}` : line;
   status.className = cls;
 
@@ -780,9 +784,16 @@ function render() {
     : 'Tailscale address not found on this PC yet. Start Tailscale to open this page from your phone.';
 }
 
+// When the app on the PC stops (or the link to it drops), the page must not
+// go on looking as if it were watching: everything on it is then old.
+let connected = true;
 function setConnected(ok) {
+  connected = ok;
   $('connDot').className = `dot${ok ? ' ok' : ''}`;
-  $('connText').textContent = ok ? 'Connected' : 'Reconnecting';
+  $('connText').textContent = ok ? 'Connected' : 'Not connected';
+  $('offlineWarn').hidden = ok;
+  document.body.classList.toggle('offline', !ok);
+  if (state) renderStatus();
 }
 
 async function load() {
