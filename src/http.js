@@ -12,6 +12,8 @@ const TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 const MAX_BODY = 100 * 1024;
 
@@ -69,7 +71,16 @@ function readJson(req) {
   });
 }
 
-function createHandler({ engine, store, getAllowedIps, getUrls }) {
+// True only for a request made on this PC itself, to "localhost". Used for
+// shutting the app down, which must never be possible from another device.
+function fromThisPc(req) {
+  const from = String(req.socket.remoteAddress || '');
+  const local = from === '127.0.0.1' || from === '::1' || from === '::ffff:127.0.0.1';
+  const name = hostnameOf(req.headers.host);
+  return local && (name === 'localhost' || name === '127.0.0.1' || name === '[::1]');
+}
+
+function createHandler({ engine, store, getAllowedIps, getUrls, onQuit }) {
   const streams = new Set();
 
   function broadcast(event, data) {
@@ -106,6 +117,11 @@ function createHandler({ engine, store, getAllowedIps, getUrls }) {
     },
     '/api/recalibrate': async () => {
       engine.recalibrate();
+    },
+    // Stops the whole app. Only from this PC: the "Stop UndaFi" shortcut uses it.
+    '/api/quit': async (body, req) => {
+      if (!onQuit || !fromThisPc(req)) throw new Error('UndaFi can only be shut down from the PC it runs on.');
+      onQuit();
     },
     '/api/events/clear': async () => {
       store.clearEvents();
@@ -148,7 +164,7 @@ function createHandler({ engine, store, getAllowedIps, getUrls }) {
           if (originHost !== String(req.headers.host).toLowerCase()) return send(res, 403, { error: 'Not allowed.' });
         }
         const body = await readJson(req);
-        const extra = (await actions[route](body)) || {};
+        const extra = (await actions[route](body, req)) || {};
         return send(res, 200, { ok: true, ...extra, state: fullState(false) });
       }
 

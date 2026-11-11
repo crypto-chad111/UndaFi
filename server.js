@@ -66,13 +66,28 @@ const handler = createHandler({
   store,
   getAllowedIps: () => [...servers.keys()],
   getUrls: urls,
+  // Let the answer go out first, then stop. ON/OFF is remembered for next time.
+  onQuit: () => setTimeout(() => process.exit(0), 200).unref(),
 });
+
+function openDashboard() {
+  const target = `http://localhost:${port}`;
+  if (process.platform === 'win32') execFile('cmd', ['/c', 'start', '', target], () => {});
+  else execFile(process.platform === 'darwin' ? 'open' : 'xdg-open', [target], () => {});
+}
 
 function listen(ip, fatal) {
   if (servers.has(ip)) return;
   const server = http.createServer(handler);
   server.on('error', (err) => {
     servers.delete(ip);
+    // Started from the shortcut while it is already running: just show it.
+    if (fatal && err.code === 'EADDRINUSE' && flag('--open')) {
+      console.log('UndaFi is already running. Opening the dashboard.');
+      openDashboard();
+      setTimeout(() => process.exit(0), 1500);
+      return;
+    }
     if (fatal) {
       console.error(err.code === 'EADDRINUSE' ? `Port ${port} is already in use. Start with another one: node server.js --port 4781` : err.message);
       process.exit(1);
@@ -82,11 +97,7 @@ function listen(ip, fatal) {
     servers.set(ip, server);
     console.log(`  ${ip === '127.0.0.1' ? 'On this PC:    ' : 'Over Tailscale:'} http://${ip === '127.0.0.1' ? 'localhost' : ip}:${port}`);
     engine.emit('state');
-    if (ip === '127.0.0.1' && flag('--open')) {
-      const target = `http://localhost:${port}`;
-      if (process.platform === 'win32') execFile('cmd', ['/c', 'start', '', target], () => {});
-      else execFile(process.platform === 'darwin' ? 'open' : 'xdg-open', [target], () => {});
-    }
+    if (ip === '127.0.0.1' && flag('--open')) openDashboard();
   });
 }
 

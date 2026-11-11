@@ -12,7 +12,8 @@ const { createHandler, hostAllowed } = require('../src/http');
 async function start() {
   const store = createStore(fs.mkdtempSync(path.join(os.tmpdir(), 'undafi-http-')));
   const engine = new Engine({ store, sendAlert: async () => ({}), createSensor: () => ({ start() {}, stop() {} }) });
-  const server = http.createServer(createHandler({ engine, store, getAllowedIps: () => ['100.101.102.103'], getUrls: () => [] }));
+  const quits = [];
+  const server = http.createServer(createHandler({ engine, store, getAllowedIps: () => ['100.101.102.103', '127.0.0.1'], getUrls: () => [], onQuit: () => quits.push(1) }));
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
   // fetch() will not let us set a fake Host header, so use http.request.
@@ -26,7 +27,7 @@ async function start() {
       req.on('error', reject);
       req.end(body);
     });
-  return { call, engine, store, port, close: () => { engine.setMode('off'); server.close(); } };
+  return { call, engine, store, port, quits, close: () => { engine.setMode('off'); server.close(); } };
 }
 
 test('serves the dashboard and the state', async () => {
@@ -85,5 +86,40 @@ test('cannot read files outside the dashboard folder', async () => {
     const res = await app.call('GET', route);
     assert.strictEqual(res.status, 404, route);
   }
+  app.close();
+});
+
+test('serves what a phone or browser needs to install it as an app', async () => {
+  const app = await start();
+  const manifest = await app.call('GET', '/manifest.webmanifest');
+  assert.strictEqual(manifest.status, 200);
+  const m = manifest.json();
+  assert.strictEqual(m.name, 'UndaFi');
+  assert.strictEqual(m.display, 'standalone');
+  for (const icon of m.icons) {
+    const res = await app.call('GET', `/${icon.src}`);
+    assert.strictEqual(res.status, 200, icon.src);
+  }
+  const page = await app.call('GET', '/');
+  assert.match(page.text, /rel="manifest"/);
+  app.close();
+});
+
+test('the app can be shut down from this PC only', async () => {
+  const app = await start();
+  const json = { 'Content-Type': 'application/json' };
+  // Reached by its Tailscale name or address: refused, even though the
+  // connection itself arrives locally (as it would through a proxy).
+  for (const Host of [`desktop.tail1234.ts.net:${app.port}`, `100.101.102.103:${app.port}`]) {
+    const res = await app.call('POST', '/api/quit', { headers: { ...json, Host }, body: '{}' });
+    assert.strictEqual(res.status, 400, Host);
+  }
+  // Another website cannot do it either.
+  const evil = await app.call('POST', '/api/quit', { headers: { ...json, Origin: 'https://evil.example' }, body: '{}' });
+  assert.strictEqual(evil.status, 403);
+  assert.strictEqual(app.quits.length, 0);
+  const ok = await app.call('POST', '/api/quit', { headers: json, body: '{}' });
+  assert.strictEqual(ok.status, 200);
+  assert.strictEqual(app.quits.length, 1);
   app.close();
 });
