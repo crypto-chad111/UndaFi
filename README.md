@@ -124,6 +124,34 @@ Windows also needs:
   this is the problem.
 - **To stay awake.** Set the PC to never sleep while you are away.
 
+### Open it like an app (optional)
+
+**On the Windows PC:** double-click **`install-shortcuts.bat`** once. It puts
+an "UndaFi" icon on your Desktop and in the Start menu.
+
+- The icon starts UndaFi in the background, with no black window, and opens
+  the dashboard. If UndaFi is already running it just opens the dashboard.
+- "Stop UndaFi" in the Start menu shuts it down. It can only be shut down
+  from the PC it runs on, never from another device.
+- The installer asks whether UndaFi should also start with Windows.
+- Nothing is copied anywhere: the icons point at this folder, so do not move
+  or rename it afterwards. `remove-shortcuts.bat` takes the icons away again.
+- What the app prints goes to `data\undafi.log`.
+
+**In the browser on the PC:** in Chrome or Edge, open the dashboard, then
+use the menu and choose "Install UndaFi" (Edge: Apps > Install this site as
+an app). It then opens in its own window. UndaFi must already be running.
+
+**On your phone:** open the dashboard's Tailscale address, then:
+
+- iPhone (Safari): Share > "Add to Home Screen".
+- Android (Chrome): menu > "Add to Home screen".
+
+You get an UndaFi icon that opens the dashboard. This is a shortcut to the
+app on your PC: the PC must be on, with UndaFi and Tailscale running. On
+Android the page may still show the browser's address bar, because a full
+install needs a secure (https) address.
+
 ### Linux
 
 ```
@@ -249,8 +277,7 @@ To keep alerts local too, run your own ntfy server and enter its address.
 
 ### Start with Windows (optional)
 
-Press Win+R, type `shell:startup`, press Enter, and put a shortcut to
-`start.bat` in the folder that opens. UndaFi remembers whether it was ON and
+Run `install-shortcuts.bat` and answer "y" when it asks. UndaFi remembers whether it was ON and
 carries on after a restart, with the countdown again.
 
 ## Your data
